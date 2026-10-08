@@ -1,0 +1,2 @@
+CREATE TABLE flow_request_log (id bigserial PRIMARY KEY, company_id text NOT NULL REFERENCES companies(id), requested_at timestamptz NOT NULL DEFAULT now());
+CREATE INDEX flow_budget_recent ON flow_request_log(company_id,requested_at);

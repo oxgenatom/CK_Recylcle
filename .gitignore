@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+node_modules/
+.next/
+*.log
+*.tmp
+*.tsbuildinfo
+playwright-report/
+test-results/
+.local/
+docs/flowaccount.openapi.yml

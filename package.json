@@ -1,0 +1,43 @@
+{
+  "name": "ck-recycle",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --hostname 127.0.0.1",
+    "build": "next build --webpack",
+    "start": "next start --hostname 127.0.0.1",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "db:member": "tsx scripts/member.ts",
+    "test:e2e": "playwright test",
+    "dev:mock": "tsx scripts/mock-server.ts",
+    "test:production": "tsx scripts/production-smoke.ts",
+    "test:migrations": "tsx scripts/verify-migrations.ts"
+  },
+  "dependencies": {
+    "decimal.js": "^10.6.0",
+    "next": "16.4.0",
+    "next-auth": "4.24.15",
+    "pg": "^8.16.3",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "server-only": "^0.0.1",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@electric-sql/pglite-socket": "^0.2.11",
+    "@next/env": "^16.4.0",
+    "@playwright/test": "^1.58.0",
+    "@types/node": "^22.19.0",
+    "@types/pg": "^8.15.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "prettier": "^3.9.9",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "yaml": "^2.8.2"
+  },
+  "type": "module"
+}

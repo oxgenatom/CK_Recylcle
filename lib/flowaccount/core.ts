@@ -1,0 +1,177 @@
+import Decimal from "decimal.js";
+import type { Supplier, Product, Snapshot } from "../model";
+import { calculate } from "../money";
+export const mockSuppliers: Supplier[] = [
+  {
+    id: "101",
+    name: "บริษัท รีไซเคิลตัวอย่าง จำกัด",
+    address: "99 ถนนตัวอย่าง กรุงเทพฯ",
+    taxId: "",
+    branch: "สำนักงานใหญ่",
+    branchCode: "00000",
+    group: 3,
+    zip: "10100",
+  },
+  {
+    id: "102",
+    name: "ผู้จำหน่ายทดสอบ B",
+    address: "เชียงใหม่",
+    taxId: "",
+    branch: "",
+    branchCode: "",
+    group: 1,
+    zip: "50000",
+  },
+];
+export const mockProducts: Product[] = [
+  {
+    id: "201",
+    masterId: "11",
+    unitId: "1",
+    name: "กระดาษรีไซเคิล",
+    code: "PAPER-01",
+    unit: "กก.",
+    price: "8.50",
+    type: 5,
+    vatType: 3,
+  },
+  {
+    id: "202",
+    masterId: "12",
+    unitId: "2",
+    name: "พลาสติก PET",
+    code: "PET-01",
+    unit: "กก.",
+    price: "12.25",
+    type: 5,
+    vatType: 3,
+  },
+  {
+    id: "203",
+    masterId: "12",
+    unitId: "3",
+    name: "พลาสติก PET",
+    code: "PET-01",
+    unit: "ถุง",
+    price: "122.50",
+    type: 5,
+    vatType: 3,
+  },
+];
+type Raw = Record<string, unknown>;
+const text = (v: unknown) => String(v ?? "");
+export function mapContacts(rows: Raw[]): Supplier[] {
+  return rows
+    .filter((c) => [5, 7].includes(Number(c.contactType)))
+    .map((c) => ({
+      id: text(c.id),
+      name: text(c.contactName),
+      address: text(c.contactAddress),
+      taxId: text(c.contactTaxId),
+      branch: text(c.contactBranch),
+      branchCode: text(c.contactBranchCode),
+      group: Number(c.contactGroup),
+      zip: text(c.contactZipCode),
+    }));
+}
+export function mapProducts(rows: Raw[]): Product[] {
+  return rows.flatMap((p) =>
+    (p.productLists as Raw[]).map((u) => ({
+      id: text(u.id),
+      masterId: text(p.id),
+      unitId: u.unitId == null ? null : text(u.unitId),
+      name: text(p.name),
+      code: text(p.code),
+      unit: text(u.unitName),
+      price: new Decimal(text(u.buyPrice) || "0").toFixed(4),
+      type: Number(p.type),
+      vatType: Number((p.buySettings as Raw)?.vatType),
+    })),
+  );
+}
+export function payload(body: Snapshot, id: string) {
+  const t = calculate(body);
+  const n = (s: string) => Number(s);
+  return {
+    recordId: 0,
+    documentStructureType: "SimpleDocument",
+    contactId: n(body.supplier.id),
+    contactName: body.supplier.name,
+    contactAddress: body.supplier.address,
+    contactTaxId: body.supplier.taxId,
+    contactBranch: body.supplier.branch,
+    contactZipCode: body.supplier.zip,
+    contactGroup: body.supplier.group,
+    publishedOn: body.date,
+    creditType: 1,
+    creditDays: 0,
+    dueDate: body.date,
+    reference: body.reference,
+    remarks: body.notes,
+    externalDocumentId: "ck-" + id,
+    isVatInclusive: body.vatMode === "inclusive",
+    isVat: body.vatMode !== "none",
+    isManualVat: false,
+    subTotal: n(t.subtotal),
+    discountPercentage: new Decimal(t.subtotal).eq(0)
+      ? 0
+      : new Decimal(t.discount)
+          .div(t.subtotal)
+          .mul(100)
+          .toDecimalPlaces(4)
+          .toNumber(),
+    discountAmount: n(t.discount),
+    totalAfterDiscount: new Decimal(t.subtotal).minus(t.discount).toNumber(),
+    vatAmount: n(t.vat),
+    grandTotal: n(t.total),
+    items: body.items.map((i, k) => ({
+      id: n(i.product.id),
+      type: i.product.type,
+      name: i.product.name,
+      unitName: i.product.unit,
+      quantity: n(i.quantity),
+      pricePerUnit: n(i.price),
+      total: n(t.lines[k]),
+    })),
+  };
+}
+export class OutcomeUnknown extends Error {}
+export function documentResult(raw: unknown) {
+  const r = raw as {
+    status?: boolean;
+    data?: { documentId?: unknown; documentSerial?: unknown };
+  };
+  if (
+    r?.status !== true ||
+    !/^[1-9]\d*$/.test(String(r.data?.documentId)) ||
+    (typeof r.data?.documentId === "number" &&
+      !Number.isSafeInteger(r.data.documentId)) ||
+    typeof r.data?.documentSerial !== "string" ||
+    !r.data.documentSerial.trim()
+  )
+    throw new OutcomeUnknown("ambiguous_response");
+  return {
+    id: String(r.data.documentId),
+    number: String(r.data.documentSerial),
+  };
+}
+export async function allPages(fetchPage: (page: number) => Promise<unknown>) {
+  const out: Raw[] = [];
+  for (let page = 1; page <= 1000; page++) {
+    const r = (await fetchPage(page)) as {
+      status: boolean;
+      data: { list: Raw[]; total: number; currentPage: number };
+    };
+    if (
+      r?.status !== true ||
+      !Array.isArray(r.data?.list) ||
+      r.data.currentPage !== page ||
+      !Number.isFinite(r.data.total)
+    )
+      throw new Error("invalid_page");
+    out.push(...r.data.list);
+    if (out.length >= r.data.total) return out;
+    if (!r.data.list.length) throw new Error("incomplete_pagination");
+  }
+  throw new Error("pagination_limit");
+}

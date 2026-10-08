@@ -36,7 +36,7 @@ try {
   await run("scripts/migrate.ts");
   assert.equal(
     (await db.query("SELECT name FROM schema_migrations")).rows.length,
-    2,
+    3,
   );
   await run("scripts/member.ts", ["issuer|subject", "admin"]);
   assert.equal(
@@ -45,7 +45,7 @@ try {
     "admin",
   );
   console.log(
-    "Migration runner passed: 2 migrations, repeat run unchanged, membership provisioning works",
+    "Migration runner passed: 3 migrations, repeat run unchanged, membership provisioning works",
   );
 } finally {
   await server.stop();

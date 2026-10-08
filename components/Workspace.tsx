@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useKeyboardViewport } from "./useKeyboardViewport";
 import { signIn, signOut } from "next-auth/react";
 import type { Draft, Receipt, Supplier, Product, Actor } from "@/lib/model";
 import { calculate } from "@/lib/money";
@@ -61,6 +62,7 @@ export default function Workspace() {
       { actor: string; action: string; created_at: string }[]
     >([]),
     [flowId, setFlowId] = useState("");
+  useKeyboardViewport(editing);
   const editable = !selected || ["draft", "failed"].includes(selected.status);
   const supplier =
     suppliers.find((s) => s.id === draft.supplierId) || selected?.body.supplier;

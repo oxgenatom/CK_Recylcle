@@ -150,6 +150,27 @@ export async function save(
         409,
         "เอกสารเปลี่ยนแล้วหรือแก้ไขไม่ได้ กรุณาเปิดใหม่",
       );
+    await c.query("DELETE FROM receiving_items WHERE document_id=$1", [
+      r.rows[0].id,
+    ]);
+    for (const [k, item] of b.items.entries())
+      await c.query(
+        "INSERT INTO receiving_items(document_id,line_number,product_id,master_id,unit_id,unit_name,product_name,product_code,quantity,price,line_total,vat_type) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)",
+        [
+          r.rows[0].id,
+          k + 1,
+          item.productId,
+          item.product.masterId,
+          item.product.unitId,
+          item.product.unit,
+          item.product.name,
+          item.product.code,
+          item.quantity,
+          item.price,
+          t.lines[k],
+          item.product.vatType,
+        ],
+      );
     await c.query(
       "INSERT INTO audit_events(document_id,actor,action) VALUES($1,$2,'saved')",
       [r.rows[0].id, a.id],

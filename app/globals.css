@@ -24,7 +24,7 @@ header button {
 main {
   max-width: 1040px;
   margin: auto;
-  padding: 24px 16px 180px;
+  padding: 24px 16px calc(180px + var(--keyboard-inset, 0px));
 }
 h1 {
   font-size: 27px;
@@ -152,7 +152,7 @@ button:disabled {
 }
 .bottom {
   position: fixed;
-  bottom: 0;
+  bottom: var(--keyboard-inset, 0px);
   left: 0;
   right: 0;
   background: white;

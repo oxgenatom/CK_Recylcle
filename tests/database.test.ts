@@ -14,11 +14,38 @@ test("migration enforces unique active submission and retains decimal drafts", a
         id,
         JSON.stringify({
           buyer: "ผู้สั่งซื้อ",
-          items: [{ quantity: "0.3", price: "1" }],
+          items: [
+            {
+              productId: "201",
+              quantity: "0.3",
+              price: "1",
+              product: {
+                masterId: "11",
+                unitId: "1",
+                unit: "กก.",
+                name: "Paper",
+                code: "P-1",
+                vatType: 3,
+              },
+            },
+          ],
         }),
-        "{}",
+        JSON.stringify({ lines: ["0.30"] }),
       ],
     );
+    await db.exec(await readFile("migrations/002_api_budget.sql", "utf8"));
+    await db.exec(await readFile("migrations/003_users_items.sql", "utf8"));
+    const items = await db.query<{
+      quantity: string;
+      price: string;
+      line_total: string;
+    }>(
+      "SELECT quantity::text,price::text,line_total::text FROM receiving_items WHERE document_id=$1",
+      [id],
+    );
+    assert.equal(items.rows[0].quantity, "0.3000");
+    assert.equal(items.rows[0].price, "1.0000");
+    assert.equal(items.rows[0].line_total, "0.30");
     const saved = await db.query<{ body: { buyer: string }; total: string }>(
       "SELECT body,total::text FROM receiving_documents WHERE id=$1",
       [id],

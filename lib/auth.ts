@@ -11,6 +11,15 @@ export function mockLoginAllowed() {
     process.env.FLOW_MODE !== "live"
   );
 }
+export function sandboxLoginAllowed() {
+  return (
+    process.env.LOCAL_SANDBOX_LOGIN_ENABLED === "true" &&
+    process.env.NODE_ENV === "development" &&
+    !process.env.VERCEL &&
+    process.env.FLOW_MODE === "live" &&
+    process.env.FLOW_BASE_URL === "https://openapi.flowaccount.com/test"
+  );
+}
 export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
   session: { strategy: "jwt", maxAge: 8 * 3600 },
@@ -36,12 +45,22 @@ export const authOptions: NextAuthOptions = {
         ]
       : []),
     Credentials({
-      name: "ทดสอบในเครื่อง",
+      name:
+        process.env.FLOW_MODE === "live"
+          ? "ทดสอบ Sandbox บนเครื่อง"
+          : "ทดสอบในเครื่อง",
       credentials: {
         user: { label: "ผู้ทดสอบ (mock-user / mock-editor)", type: "text" },
       },
       async authorize(c) {
-        const id = c?.user || "mock-user";
+        const id =
+          c?.user || (sandboxLoginAllowed() ? "sandbox-user" : "mock-user");
+        if (sandboxLoginAllowed() && id === "sandbox-user")
+          return {
+            id,
+            name: "ผู้ทดสอบ Sandbox",
+            email: "sandbox@example.invalid",
+          };
         return mockLoginAllowed() &&
           ["mock-user", "mock-editor", "mock-disabled"].includes(id)
           ? { id, name: "ผู้ทดสอบ", email: "mock@example.invalid" }

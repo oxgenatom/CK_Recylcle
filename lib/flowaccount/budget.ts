@@ -8,7 +8,7 @@ export async function reserve() {
     await c.query("BEGIN");
     await c.query("SELECT pg_advisory_xact_lock(724002)");
     const company = process.env.APP_COMPANY_ID;
-    const limit = process.env.FLOW_BASE_URL?.endsWith("/test") ? 18 : 90;
+    const limit = 18;
     const r = await c.query(
       "SELECT count(*)::integer AS count FROM flow_request_log WHERE company_id=$1 AND requested_at>now()-interval '1 minute'",
       [company],

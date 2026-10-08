@@ -20,6 +20,7 @@ const child = spawn(
       NEXTAUTH_URL: url,
       NEXTAUTH_SECRET: randomBytes(32).toString("hex"),
       MOCK_LOGIN_ENABLED: "true",
+      LOCAL_SANDBOX_LOGIN_ENABLED: "true",
       FLOW_MODE: "mock",
     },
   },

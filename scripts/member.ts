@@ -17,6 +17,10 @@ await p.query(
   [process.env.APP_COMPANY_ID, "CK Recycle"],
 );
 await p.query(
+  "INSERT INTO profiles(identity) VALUES($1) ON CONFLICT DO NOTHING",
+  [identity],
+);
+await p.query(
   "INSERT INTO memberships(identity,company_id,role) VALUES($1,$2,$3) ON CONFLICT(identity,company_id) DO UPDATE SET role=$3,active=true",
   [identity, process.env.APP_COMPANY_ID, role],
 );

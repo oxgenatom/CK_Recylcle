@@ -13,7 +13,9 @@
     "test:e2e": "playwright test",
     "dev:mock": "tsx scripts/mock-server.ts",
     "test:production": "tsx scripts/production-smoke.ts",
-    "test:migrations": "tsx scripts/verify-migrations.ts"
+    "test:migrations": "tsx scripts/verify-migrations.ts",
+    "check:sandbox": "tsx scripts/check-sandbox.ts",
+    "dev:sandbox": "tsx scripts/mock-server.ts --sandbox"
   },
   "dependencies": {
     "decimal.js": "^10.6.0",

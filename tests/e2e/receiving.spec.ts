@@ -175,3 +175,65 @@ test("cross-company document is hidden and interrupted submission becomes unknow
     ).status(),
   ).toBe(409);
 });
+
+test("keyboard viewport simulation keeps quantity and footer above obstruction", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    let visibleHeight = window.innerHeight;
+    const viewport = new EventTarget();
+    Object.defineProperties(viewport, {
+      height: { get: () => visibleHeight },
+      offsetTop: { value: 0 },
+    });
+    Object.defineProperty(window, "visualViewport", {
+      value: viewport,
+      configurable: true,
+    });
+    (
+      window as unknown as { setKeyboard: (open: boolean) => void }
+    ).setKeyboard = (open) => {
+      visibleHeight = window.innerHeight - (open ? 300 : 0);
+      viewport.dispatchEvent(new Event("resize"));
+    };
+  });
+  await login(page.request);
+  await page.goto("/");
+  await page.getByRole("button", { name: "＋ สร้างใบรับสินค้า" }).click();
+  await page.getByRole("button", { name: /กระดาษรีไซเคิล ＋/ }).click();
+  await page.getByLabel("จำนวนรับ 1", { exact: true }).focus();
+  await page.evaluate(() =>
+    (window as unknown as { setKeyboard: (open: boolean) => void }).setKeyboard(
+      true,
+    ),
+  );
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const footer = document
+          .querySelector(".bottom")!
+          .getBoundingClientRect();
+        const input = (
+          document.activeElement as HTMLElement
+        ).getBoundingClientRect();
+        return (
+          footer.bottom <= window.visualViewport!.height + 1 &&
+          input.bottom < footer.top &&
+          input.top >= 0
+        );
+      }),
+    )
+    .toBeTruthy();
+  await page.evaluate(() =>
+    (window as unknown as { setKeyboard: (open: boolean) => void }).setKeyboard(
+      false,
+    ),
+  );
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        document.documentElement.style.getPropertyValue("--keyboard-inset"),
+      ),
+    )
+    .toBe("0px");
+});

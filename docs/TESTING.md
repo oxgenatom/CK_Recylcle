@@ -4,12 +4,12 @@ Executed locally on Windows using Node.js 25.2.1, Next.js 16.4.0 and Chromium. R
 
 | Check | Verified result |
 |---|---|
-| Unit/contract/database/TLS | 10 tests passed |
-| E2E normal mock | 10 tests passed at 390×844 and 1024×768 |
-| E2E timeout mock | 10 tests passed; unknown blocks repeat submission |
+| Unit/contract/database/TLS | 16 tests passed |
+| E2E normal mock | 12 tests passed at 390×844 and 1024×768 |
+| E2E timeout mock | 12 tests passed; unknown blocks repeat submission |
 | Production build | successful optimized Next.js build and TypeScript check |
 | Production smoke | page 200, protected API 401, local mock login denied with flag true |
-| Migration runner | both SQL migrations applied; repeated run unchanged; membership CLI passed |
+| Migration runner | all three SQL migrations applied; repeated run unchanged; membership CLI passed |
 | npm install audit | 0 vulnerabilities reported at installation |
 
 E2E verifies active membership, unauthenticated access, editor submission denial, Origin checking, input validation, stale draft versions, cross-company document hiding, atomic submission claim, one submission audit for simultaneous requests, stored mock ID/number, persistence after reload, exact decimal total, review/confirmation and recovery of an interrupted submitting record. Tests exercise the application API and PostgreSQL transactions; PGlite uses a serialized local connection. True overlapping PostgreSQL transactions and multiple Vercel instances still require Railway staging verification.

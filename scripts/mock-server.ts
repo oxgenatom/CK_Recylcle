@@ -1,12 +1,22 @@
+import nextEnv from "@next/env";
+import { sandboxConfig, SANDBOX_BASE } from "../lib/flowaccount/config";
 // Local development/testing only. Never use this database or login on Vercel.
 import { PGlite } from "@electric-sql/pglite";
 import { PGLiteSocketServer } from "@electric-sql/pglite-socket";
 import { readFile, readdir, mkdir } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
+const sandbox = process.argv.includes("--sandbox");
+if (sandbox) {
+  nextEnv.loadEnvConfig(process.cwd(), true);
+  sandboxConfig({ ...process.env, FLOW_API_APPROVED: "true" });
+}
 await mkdir(".local", { recursive: true });
 const test = process.env.CK_E2E === "true";
-const d = await PGlite.create(test ? "memory://" : ".local/mock-db");
+if (test && sandbox) throw new Error("E2E must use mock");
+const d = await PGlite.create(
+  test ? "memory://" : sandbox ? ".local/sandbox-db" : ".local/mock-db",
+);
 await d.exec(
   "CREATE TABLE IF NOT EXISTS schema_migrations(name text PRIMARY KEY)",
 );
@@ -22,8 +32,12 @@ for (const file of (await readdir("migrations"))
   }
 }
 await d.exec(
-  "INSERT INTO companies(id,name) VALUES('mock-company','CK Mock'),('other-company','Other Mock') ON CONFLICT DO NOTHING; INSERT INTO memberships(identity,company_id,role,active) VALUES('mock-user','mock-company','admin',true),('mock-editor','mock-company','editor',true),('mock-disabled','mock-company','sender',false) ON CONFLICT DO NOTHING;",
+  "INSERT INTO companies(id,name) VALUES('mock-company','CK Mock'),('other-company','Other Mock') ON CONFLICT DO NOTHING; INSERT INTO profiles(identity) VALUES('mock-user'),('mock-editor'),('mock-disabled') ON CONFLICT DO NOTHING; INSERT INTO memberships(identity,company_id,role,active) VALUES('mock-user','mock-company','admin',true),('mock-editor','mock-company','editor',true),('mock-disabled','mock-company','sender',false) ON CONFLICT DO NOTHING;",
 );
+if (sandbox)
+  await d.exec(
+    "INSERT INTO companies(id,name) VALUES('sandbox-company','CK Sandbox') ON CONFLICT DO NOTHING;INSERT INTO profiles(identity) VALUES('sandbox-user') ON CONFLICT DO NOTHING;INSERT INTO memberships(identity,company_id,role) VALUES('sandbox-user','sandbox-company','admin') ON CONFLICT DO NOTHING;",
+  );
 if (test) {
   const raw = {
     supplierId: "101",
@@ -67,13 +81,14 @@ const child = spawn(
       DATABASE_URL: "postgres://postgres@127.0.0.1:54329/postgres",
       DATABASE_CA_BASE64: "",
       DB_POOL_MAX: "1",
-      APP_COMPANY_ID: "mock-company",
+      APP_COMPANY_ID: sandbox ? "sandbox-company" : "mock-company",
       NEXTAUTH_URL: "http://127.0.0.1:3000",
       NEXTAUTH_SECRET: randomBytes(32).toString("hex"),
-      MOCK_LOGIN_ENABLED: "true",
-      FLOW_MODE: "mock",
-      FLOW_API_APPROVED: "false",
-      FLOW_PRODUCTION_APPROVED: "false",
+      MOCK_LOGIN_ENABLED: sandbox ? "false" : "true",
+      LOCAL_SANDBOX_LOGIN_ENABLED: sandbox ? "true" : "false",
+      FLOW_BASE_URL: SANDBOX_BASE,
+      FLOW_MODE: sandbox ? "live" : "mock",
+      FLOW_API_APPROVED: sandbox ? "true" : "false",
     },
   },
 );

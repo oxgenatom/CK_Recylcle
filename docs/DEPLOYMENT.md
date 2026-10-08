@@ -1,5 +1,7 @@
 # Vercel / Railway deployment and recovery
 
+Phase 1 update (8 October 2026): Production catalog reads now have separate explicit configuration. All live purchase submission/reconciliation is blocked. The rollout instructions below are historical planning; do not enable document writes. See [current Phase 1 readiness](PHASE1.md). No Railway database changes were made in Phase 1.
+
 No services have been provisioned and no deployment has been performed. Confirm company/user counts, roles and approval requirement, free-text/list buyers, new vs PO/partial receipts, warehouses, VAT/discount rules, repository visibility, account ownership, budget and authorized FlowAccount test method first. The present deployment model is one company per app. Do not turn on production gates before that confirmation and UAT.
 
 ## Railway PostgreSQL

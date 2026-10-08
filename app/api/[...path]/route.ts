@@ -14,6 +14,11 @@ async function handle(
     const a = await actor();
     const { path } = await params;
     const [kind, id, action] = path;
+    if (mode() === "live" && ["submit", "reconcile"].includes(action))
+      throw new HttpError(
+        403,
+        "Phase 1 อ่านข้อมูลเท่านั้น ยังไม่เปิดการส่งเอกสาร",
+      );
     const u = new URL(req.url);
     if (req.method === "GET") {
       if (kind === "me") return NextResponse.json({ ...a, mode: mode() });
@@ -90,4 +95,17 @@ async function handle(
     );
   }
 }
-export { handle as GET, handle as POST, handle as PUT };
+async function protectedHandle(
+  req: Request,
+  context: { params: Promise<{ path: string[] }> },
+) {
+  const response = await handle(req, context);
+  response.headers.set("Cache-Control", "private, no-store");
+  response.headers.set("Vary", "Cookie");
+  return response;
+}
+export {
+  protectedHandle as GET,
+  protectedHandle as POST,
+  protectedHandle as PUT,
+};

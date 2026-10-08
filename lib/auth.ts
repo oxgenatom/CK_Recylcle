@@ -3,11 +3,13 @@ import { getServerSession, type NextAuthOptions } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { db } from "./db";
 import type { Actor } from "./model";
+import { localCatalogLoginAllowed } from "./flowaccount/access";
 export function mockLoginAllowed() {
   return (
     process.env.MOCK_LOGIN_ENABLED === "true" &&
     process.env.NODE_ENV === "development" &&
     !process.env.VERCEL &&
+    !process.env.RAILWAY_ENVIRONMENT_ID &&
     process.env.FLOW_MODE !== "live"
   );
 }
@@ -16,6 +18,7 @@ export function sandboxLoginAllowed() {
     process.env.LOCAL_SANDBOX_LOGIN_ENABLED === "true" &&
     process.env.NODE_ENV === "development" &&
     !process.env.VERCEL &&
+    !process.env.RAILWAY_ENVIRONMENT_ID &&
     process.env.FLOW_MODE === "live" &&
     process.env.FLOW_BASE_URL === "https://openapi.flowaccount.com/test"
   );
@@ -47,12 +50,27 @@ export const authOptions: NextAuthOptions = {
     Credentials({
       name:
         process.env.FLOW_MODE === "live"
-          ? "ทดสอบ Sandbox บนเครื่อง"
+          ? "ทดสอบข้อมูล FlowAccount บนเครื่อง"
           : "ทดสอบในเครื่อง",
       credentials: {
-        user: { label: "ผู้ทดสอบ (mock-user / mock-editor)", type: "text" },
+        user: {
+          label:
+            process.env.LOCAL_CATALOG_LOGIN_ENABLED === "true"
+              ? "ผู้ทดสอบ (catalog-user)"
+              : "ผู้ทดสอบ (mock-user / mock-editor / sandbox-user)",
+          type: "text",
+        },
       },
       async authorize(c) {
+        if (
+          localCatalogLoginAllowed() &&
+          (!c?.user || c.user === "catalog-user")
+        )
+          return {
+            id: "catalog-user",
+            name: "ผู้ทดสอบข้อมูลจริงบนเครื่อง",
+            email: "catalog@example.invalid",
+          };
         const id =
           c?.user || (sandboxLoginAllowed() ? "sandbox-user" : "mock-user");
         if (sandboxLoginAllowed() && id === "sandbox-user")
@@ -89,6 +107,8 @@ export async function actor(): Promise<Actor> {
   const session = await getServerSession(authOptions);
   const id = (session as unknown as { identity?: string } | null)?.identity;
   if (!id) throw new HttpError(401, "กรุณาเข้าสู่ระบบ");
+  if (id === "catalog-user" && !localCatalogLoginAllowed())
+    throw new HttpError(403, "บัญชีทดสอบใช้ได้เฉพาะเครื่อง local");
   const company = process.env.APP_COMPANY_ID;
   if (!company) throw new HttpError(503, "ยังไม่ได้ตั้งค่าบริษัท");
   const { rows } = await db().query(

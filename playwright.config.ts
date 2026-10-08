@@ -1,13 +1,14 @@
 import { defineConfig } from "@playwright/test";
+const origin = "http://127.0.0.1:" + (process.env.CK_PORT || "3000");
 export default defineConfig({
   testDir: "tests/e2e",
   workers: 1,
   timeout: 60000,
-  use: { baseURL: "http://127.0.0.1:3000" },
+  use: { baseURL: origin },
   webServer: {
     command: "npm run dev:mock",
     env: { CK_E2E: "true" },
-    url: "http://127.0.0.1:3000",
+    url: origin,
     reuseExistingServer: false,
   },
   projects: [

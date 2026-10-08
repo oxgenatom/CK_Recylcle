@@ -75,19 +75,31 @@ export function mapContacts(rows: Raw[]): Supplier[] {
     }));
 }
 export function mapProducts(rows: Raw[]): Product[] {
-  return rows.flatMap((p) =>
-    (p.productLists as Raw[]).map((u) => ({
-      id: text(u.id),
-      masterId: text(p.id),
-      unitId: u.unitId == null ? null : text(u.unitId),
-      name: text(p.name),
-      code: text(p.code),
-      unit: text(u.unitName),
-      price: new Decimal(text(u.buyPrice) || "0").toFixed(4),
-      type: Number(p.type),
-      vatType: Number((p.buySettings as Raw)?.vatType),
-    })),
-  );
+  const seen = new Set<string>();
+  return rows.flatMap((p) => {
+    if (!Array.isArray(p.productLists) || !p.productLists.length)
+      throw new Error("invalid_product_units");
+    return (p.productLists as Raw[]).map((u) => {
+      const id = text(u.id);
+      if (!/^[1-9]\d*$/.test(id) || seen.has(id))
+        throw new Error("invalid_product_list_id");
+      seen.add(id);
+      const price = new Decimal(text(u.buyPrice) || "0");
+      if (!price.isFinite() || price.isNegative())
+        throw new Error("invalid_product_price");
+      return {
+        id: text(u.id),
+        masterId: text(p.id),
+        unitId: u.unitId == null ? null : text(u.unitId),
+        name: text(p.name),
+        code: text(u.code ?? p.code),
+        unit: text(u.unitName),
+        price: price.toFixed(4),
+        type: Number(p.type),
+        vatType: Number((p.buySettings as Raw)?.vatType),
+      };
+    });
+  });
 }
 export function payload(body: Snapshot, id: string) {
   const t = calculate(body);
@@ -108,7 +120,7 @@ export function payload(body: Snapshot, id: string) {
     dueDate: body.date,
     reference: body.reference,
     remarks: body.notes,
-    externalDocumentId: "ck-" + id,
+    externalDocumentId: "ck-" + (id.length > 33 ? id.replace(/-/g, "") : id),
     isVatInclusive: body.vatMode === "inclusive",
     isVat: body.vatMode !== "none",
     isManualVat: false,
@@ -157,6 +169,8 @@ export function documentResult(raw: unknown) {
 }
 export async function allPages(fetchPage: (page: number) => Promise<unknown>) {
   const out: Raw[] = [];
+  let total: number | undefined;
+  const seen = new Set<string>();
   for (let page = 1; page <= 1000; page++) {
     const r = (await fetchPage(page)) as {
       status: boolean;
@@ -166,11 +180,21 @@ export async function allPages(fetchPage: (page: number) => Promise<unknown>) {
       r?.status !== true ||
       !Array.isArray(r.data?.list) ||
       r.data.currentPage !== page ||
-      !Number.isFinite(r.data.total)
+      !Number.isSafeInteger(r.data.total) ||
+      r.data.total < 0
     )
       throw new Error("invalid_page");
+    if (total !== undefined && total !== r.data.total)
+      throw new Error("catalog_changed_retry");
+    total = r.data.total;
+    for (const row of r.data.list) {
+      const id = String(row?.id ?? "");
+      if (!id || seen.has(id)) throw new Error("invalid_or_duplicate_id");
+      seen.add(id);
+    }
     out.push(...r.data.list);
-    if (out.length >= r.data.total) return out;
+    if (out.length > r.data.total) throw new Error("invalid_page_total");
+    if (out.length === r.data.total) return out;
     if (!r.data.list.length) throw new Error("incomplete_pagination");
   }
   throw new Error("pagination_limit");

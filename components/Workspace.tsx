@@ -58,12 +58,24 @@ export default function Workspace() {
     [filter, setFilter] = useState(""),
     [search, setSearch] = useState(""),
     [supplierSearch, setSupplierSearch] = useState(""),
+    [catalogLoading, setCatalogLoading] = useState(false),
+    [catalogError, setCatalogError] = useState(""),
     [history, setHistory] = useState<
       { actor: string; action: string; created_at: string }[]
     >([]),
     [flowId, setFlowId] = useState("");
   useKeyboardViewport(editing);
   const editable = !selected || ["draft", "failed"].includes(selected.status);
+  const supplierMatches = suppliers.filter((s) =>
+    (s.name + " " + s.taxId)
+      .toLowerCase()
+      .includes(supplierSearch.trim().toLowerCase()),
+  );
+  const productMatches = products.filter((p) =>
+    (p.name + " " + p.code + " " + p.unit)
+      .toLowerCase()
+      .includes(search.trim().toLowerCase()),
+  );
   const supplier =
     suppliers.find((s) => s.id === draft.supplierId) || selected?.body.supplier;
   let totals;
@@ -95,14 +107,24 @@ export default function Workspace() {
     );
   }
   async function loadMasters(refresh = false) {
-    const c = await api(
-      "masters",
-      refresh ? "POST" : "GET",
-      refresh ? {} : undefined,
-    );
-    setSuppliers(c.suppliers);
-    setProducts(c.products);
-    setSyncedAt(c.syncedAt);
+    setCatalogLoading(true);
+    setCatalogError("");
+    try {
+      const c = await api(
+        "masters",
+        refresh ? "POST" : "GET",
+        refresh ? {} : undefined,
+      );
+      setSuppliers(c.suppliers);
+      setProducts(c.products);
+      setSyncedAt(c.syncedAt);
+    } catch {
+      setCatalogError(
+        "โหลดผู้จำหน่ายและสินค้าไม่ได้ กรุณาตรวจการเชื่อมต่อแล้วลองใหม่",
+      );
+    } finally {
+      setCatalogLoading(false);
+    }
   }
   useEffect(() => {
     api("me")
@@ -191,7 +213,7 @@ export default function Workspace() {
             <small>
               {me.mode === "mock"
                 ? "โหมดทดสอบ · ไม่มีเอกสารจริง"
-                : "เชื่อม FlowAccount"}
+                : "FlowAccount · Phase 1 อ่านข้อมูลเท่านั้น"}
             </small>
             <h1>{editing ? "รับสินค้าเข้าคลัง" : "รายการใบรับสินค้า"}</h1>
           </div>
@@ -203,6 +225,28 @@ export default function Workspace() {
         <p role="status" aria-live="polite">
           {message}
         </p>
+        {catalogLoading && (
+          <p role="status">
+            กำลังโหลดผู้จำหน่ายและสินค้าจาก{" "}
+            {me.mode === "mock" ? "Mock" : "FlowAccount"}…
+          </p>
+        )}
+        {catalogError && (
+          <div className="card error" role="alert">
+            <p>{catalogError}</p>
+            {syncedAt && (
+              <p>
+                กำลังแสดงข้อมูลที่โหลดสำเร็จครั้งก่อน อาจยังไม่ใช่ข้อมูลล่าสุด
+              </p>
+            )}
+            <button
+              disabled={catalogLoading}
+              onClick={() => run(() => loadMasters(true))}
+            >
+              ลองใหม่
+            </button>
+          </div>
+        )}
         {!editing ? (
           <>
             <section className="card">
@@ -344,6 +388,7 @@ export default function Workspace() {
                       ผู้จำหน่าย
                       <select
                         aria-label="ผู้จำหน่าย"
+                        disabled={catalogLoading}
                         value={draft.supplierId}
                         onChange={(e) => change({ supplierId: e.target.value })}
                       >
@@ -352,7 +397,7 @@ export default function Workspace() {
                           .filter(
                             (s) =>
                               s.id === draft.supplierId ||
-                              s.name.includes(supplierSearch),
+                              supplierMatches.includes(s),
                           )
                           .map((s) => (
                             <option key={s.id} value={s.id}>
@@ -361,12 +406,17 @@ export default function Workspace() {
                           ))}
                       </select>
                     </label>
+                    {!catalogLoading &&
+                      !catalogError &&
+                      !supplierMatches.length && (
+                        <p role="status">ไม่พบผู้จำหน่ายที่ตรงกับการค้นหา</p>
+                      )}
                     {supplier && (
                       <p className="note">
                         {supplier.address} {supplier.zip}
                         <br />
                         เลขภาษี: {supplier.taxId || "ไม่ระบุ"} ·{" "}
-                        {supplier.branch}
+                        {supplier.branch || "ไม่ระบุสาขา"} {supplier.branchCode}
                       </p>
                     )}
                     <label>
@@ -423,22 +473,26 @@ export default function Workspace() {
                           onChange={(e) => change({ discount: e.target.value })}
                         />
                       </label>
-                      <label>
-                        คลังสินค้า
-                        <input
-                          value={draft.warehouse}
-                          onChange={(e) =>
-                            change({ warehouse: e.target.value })
-                          }
-                        />
-                      </label>
-                      <label>
-                        อ้างอิง PO
-                        <input
-                          value={draft.po}
-                          onChange={(e) => change({ po: e.target.value })}
-                        />
-                      </label>
+                      {me.mode === "mock" && (
+                        <label>
+                          คลังสินค้า
+                          <input
+                            value={draft.warehouse}
+                            onChange={(e) =>
+                              change({ warehouse: e.target.value })
+                            }
+                          />
+                        </label>
+                      )}
+                      {me.mode === "mock" && (
+                        <label>
+                          อ้างอิง PO
+                          <input
+                            value={draft.po}
+                            onChange={(e) => change({ po: e.target.value })}
+                          />
+                        </label>
+                      )}
                       <label>
                         หมายเหตุ
                         <textarea
@@ -447,9 +501,8 @@ export default function Workspace() {
                         />
                       </label>
                       <p className="note">
-                        ผู้สั่งซื้อ คลัง และ PO เก็บในเว็บ
-                        ผู้สั่งซื้อไม่ถูกส่งเข้าช่องอื่น
-                        การรับบางส่วนและการเชื่อม PO ยังไม่เปิดใช้งาน
+                        Phase 1 เก็บผู้สั่งซื้อในร่างบนเว็บ ยังไม่ส่งเอกสารไป
+                        FlowAccount
                       </p>
                     </details>
                   </section>
@@ -465,35 +518,35 @@ export default function Workspace() {
                       />
                     </label>
                     <div className="results">
-                      {products
-                        .filter((p) =>
-                          (p.name + " " + p.code)
-                            .toLowerCase()
-                            .includes(search.toLowerCase()),
-                        )
-                        .map((p) => (
-                          <button
-                            key={p.id}
-                            onClick={() =>
-                              change({
-                                items: [
-                                  ...draft.items,
-                                  {
-                                    productId: p.id,
-                                    quantity: "1",
-                                    price: p.price,
-                                  },
-                                ],
-                              })
-                            }
-                          >
-                            {p.name} ＋
-                            <small>
-                              {p.code} · {p.unit} · {p.price} ฿
-                            </small>
-                          </button>
-                        ))}
+                      {productMatches.map((p) => (
+                        <button
+                          key={p.id}
+                          disabled={catalogLoading}
+                          onClick={() =>
+                            change({
+                              items: [
+                                ...draft.items,
+                                {
+                                  productId: p.id,
+                                  quantity: "1",
+                                  price: p.price,
+                                },
+                              ],
+                            })
+                          }
+                        >
+                          {p.name} ＋
+                          <small>
+                            {p.code} · {p.unit} · {p.price} ฿
+                          </small>
+                        </button>
+                      ))}
                     </div>
+                    {!catalogLoading &&
+                      !catalogError &&
+                      !productMatches.length && (
+                        <p role="status">ไม่พบสินค้าที่ตรงกับการค้นหา</p>
+                      )}
                     <small>
                       ข้อมูลล่าสุด{" "}
                       {syncedAt
@@ -609,7 +662,7 @@ export default function Workspace() {
                 <p className="note">
                   {me.mode === "mock"
                     ? "ยืนยันแล้วจะสร้างผลจำลองในฐานข้อมูลทดสอบ"
-                    : "สร้างใบรับสินค้าใน FlowAccount สถานะรออนุมัติ"}
+                    : "Phase 1 ตรวจสอบร่างเท่านั้น ยังไม่ส่งเอกสารไป FlowAccount"}
                 </p>
                 <button onClick={() => setReview(false)}>กลับไปแก้ไข</button>
               </section>
@@ -659,7 +712,11 @@ export default function Workspace() {
                   >
                     เก็บร่าง
                   </button>
-                  {review ? (
+                  {review && me.mode === "live" ? (
+                    <p className="note">
+                      Phase 1 ตรวจสอบร่างได้ แต่ยังไม่เปิดการส่งเอกสาร
+                    </p>
+                  ) : review ? (
                     <button
                       className="primary"
                       disabled={

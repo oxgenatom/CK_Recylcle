@@ -1,6 +1,26 @@
 # CK Recycle
 
-Next.js 16 + TypeScript mobile/tablet receiving app. PostgreSQL stores authenticated drafts, immutable submission snapshots and audit history. FlowAccount calls run only on the server. **Production has not been deployed or tested.**
+Next.js 16 + TypeScript mobile/tablet receiving app. **Phase 1 connects the real supplier/product catalog; live document submission is disabled at route, service and transport layers.** FlowAccount credentials and tokens stay on the server. Production deployment has not been performed.
+
+## Phase 1: open the real catalog locally
+
+Keep credentials in ignored `.env.local` or server environment variables. For Sandbox use `FLOW_BASE_URL=https://openapi.flowaccount.com/test`, Sandbox credentials, and `FLOW_API_APPROVED=true`.
+
+```powershell
+npm ci
+npm run check:catalog:sandbox
+npm run dev:catalog:sandbox
+```
+
+Open http://127.0.0.1:3000, choose the credentials login and enter `catalog-user`. Select “สร้างใบรับสินค้า” to open the form; search/select suppliers and product units. Buyer/date/reference and editable purchase prices/totals are retained. Saving creates a local web draft only. No live FlowAccount purchase can be submitted.
+
+Production is a separate explicit configuration: set `FLOW_BASE_URL=https://openapi.flowaccount.com/v1` and Production credentials yourself, then run `npm run check:catalog:production` and `npm run dev:catalog:production`. These commands explicitly approve token + catalog GET only and require the matching URL; they never switch an existing Sandbox URL automatically. For OIDC deployments select `FLOW_ENVIRONMENT=production` and `FLOW_PRODUCTION_READ_APPROVED=true` explicitly. Do not expose live data publicly before hosted OIDC/membership verification.
+
+Local catalog servers bind to 127.0.0.1 and use separate ignored `.local/catalog-sandbox-db` / `.local/catalog-production-db` databases. The development-only catalog login is disabled on production builds, Vercel and Railway. All catalog endpoints check session and active company membership and respond with `private, no-store`. No credentials are returned to the client. Use `CK_PORT=3002` to choose another local port. The local DB socket uses port 54329; run only one local helper at a time.
+
+GET `/contacts` includes supplier types 5/7; GET `/product-masters` traverses all pages (100 masters/page). Every `productLists.id` is a distinct selectable unit; unit ID/name, per-unit code and purchase price are preserved. Duplicate IDs, changing totals, incomplete pages and malformed units fail the refresh rather than publishing partial data. Missing purchase price defaults to zero and is editable. Catalog refresh publishes atomically and keeps the previously successful cache with an explicit stale-data notice on failure; it never substitutes Mock data. Caches are separated by company and environment. Local requests are paced conservatively for large catalogs; hosted long-running refreshes need a background sync design in Phase 2.
+
+See [Phase 1 results and Railway checklist](docs/PHASE1.md). `scripts/check-catalog-ui.ts` can verify real catalog selection in local Chromium at mobile/tablet sizes without logging business records or saving a receipt.
 
 ## Run locally without external services
 
@@ -33,11 +53,11 @@ An atomic database update claims each submission before the HTTP call. A unique 
 
 ## FlowAccount
 
-Default FLOW_MODE is mock. Set live only after approving a test account and defining UAT. Set FLOW_BASE_URL to `https://openapi.flowaccount.com/test`, FLOW_CLIENT_ID/SECRET and FLOW_API_APPROVED=true. This revision hard-rejects every production URL, even if a production approval flag is set. There is no fallback. No real credentials are included.
+Default FLOW_MODE is mock. FLOW_MODE=live uses the explicit Phase 1 catalog configuration above. The legacy `check:sandbox` command and SandboxTransport tests remain Sandbox-only. No real credentials are included.
 
-GET /contacts and GET /product-masters traverse every page before atomically replacing the catalog cache. Supplier types 5/7; each productLists entry is a selectable unit and its ID is used in purchases.items.id. Prices are defaults and can be edited. Refresh errors keep the old cache. Last refresh is visible. Shared database rate reservations leave headroom below FlowAccount limits (18/min sandbox; production is disabled). Large catalogs that exceed a complete refresh within the budget need a background sync job before rollout; sync currently fails clearly and keeps the previous catalog rather than publishing partial data.
+Hosted catalog requests use shared database rate reservations (18/minute conservative budget). Oversized hosted refreshes fail clearly and keep the last complete cache; Phase 1 real-data UAT uses the paced local helper.
 
-POST /purchases stores documentId/documentSerial. Buyer, warehouse and PO stay in the web database and are not sent to another field. SimpleDocument schema has no dedicated buyer or warehouse field; PO linkage uses a separate upgrade workflow, not the free-text reference. Current live submission is deliberately restricted to new receipts with exclusive VAT 7%, no discount, no warehouse/PO, and product buy VAT type 3. Mock supports inclusive/exclusive/no VAT and a document discount in baht. Other live tax/discount combinations require payload/UAT validation before enabling them. Line totals round to two decimals (half up), quantities/prices accept four decimals, and totals are recomputed with Decimal on the server. Rounding midpoint equivalence and stock movement must be checked in the approved Flow test company.
+Live POST /purchases and live reconciliation are disabled for Phase 1. Existing document transport/payload code is retained for regression tests with synthetic fetchers only. The previously confirmed `salesName` buyer mapping and 36-character `externalDocumentId` limit are Phase 2 requirements; Phase 1 does not submit a payload. Mock submission remains available for regression tests. Totals use Decimal with two-place half-up line rounding and four-place quantities/prices.
 
 See [API mapping](docs/FLOWACCOUNT.md), [deployment and recovery](docs/DEPLOYMENT.md), and [test results](docs/TESTING.md).
 
@@ -61,6 +81,6 @@ Original PLAN.md, index.html and mobile.html are preserved. The application uses
 
 Put actual FLOW_CLIENT_ID and FLOW_CLIENT_SECRET in ignored `.env.local` on your own computer. Leave secrets blank in .env.example and never paste them into chat. `npm run check:sandbox` requests a Sandbox token and traverses contacts/product-masters without creating a purchase; its sanitized result is written to `.local/sandbox-check.json`. It rejects placeholder credentials and URLs other than https://openapi.flowaccount.com/test, and disallows HTTP redirects. Running this command explicitly authorizes read-only Sandbox testing.
 
-`npm run dev:sandbox` starts a separate persistent `.local/sandbox-db` and local-only Sandbox test login (`sandbox-user`, or blank username). It uses real Sandbox catalog and purchase APIs, with local PostgreSQL WASM storage. This is not proof of Railway connectivity or OIDC login. The local Sandbox login is disabled outside development and whenever VERCEL is set. Hosted staging must use OIDC and a separate Railway staging DB. New migration 003 adds profiles and receiving_items with NUMERIC quantities/prices and backfills existing snapshots. Saves update the document, item rows and audit in one transaction.
+Legacy `npm run dev:sandbox` still uses the isolated `.local/sandbox-db` and `sandbox-user` login; live purchases are now blocked there too. Prefer `dev:catalog:sandbox` for Phase 1. Neither local helper verifies Railway or hosted OIDC. No migration is added in this Phase; Railway migration/provisioning awaits Phase 2.
 
 See [current feature verification](docs/STATUS.md) for mock/service distinctions and outstanding setup.

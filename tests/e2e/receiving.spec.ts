@@ -4,7 +4,7 @@ import {
   type Page,
   type APIRequestContext,
 } from "@playwright/test";
-const origin = "http://127.0.0.1:3000";
+const origin = "http://127.0.0.1:" + (process.env.CK_PORT || "3000");
 async function login(request: APIRequestContext, user = "mock-user") {
   const c = await (await request.get("/api/auth/csrf")).json();
   const r = await request.post("/api/auth/callback/credentials", {
@@ -30,8 +30,10 @@ test("API requires authentication and active membership", async ({
   request,
 }) => {
   expect((await request.get("/api/receipts")).status()).toBe(401);
+  expect((await request.get("/api/masters")).status()).toBe(401);
   await login(request, "mock-disabled");
   expect((await request.get("/api/receipts")).status()).toBe(403);
+  expect((await request.get("/api/masters")).status()).toBe(403);
 });
 test("editor cannot submit; origin/schema/version/unknown ownership checks", async ({
   request,

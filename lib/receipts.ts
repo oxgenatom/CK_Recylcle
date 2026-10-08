@@ -20,17 +20,21 @@ import {
   fetchPurchase,
 } from "./flowaccount/client";
 import { payload } from "./flowaccount/core";
+const catalogKey = () =>
+  mode() === "mock"
+    ? "catalog"
+    : "catalog:" + (process.env.FLOW_ENVIRONMENT || "sandbox");
 export async function masters(a: Actor, refresh = false) {
   const q = await db().query(
     "SELECT data,synced_at FROM master_cache WHERE company_id=$1 AND mode=$2 AND kind=$3",
-    [a.company, mode(), "catalog"],
+    [a.company, mode(), catalogKey()],
   );
   if (q.rows.length && !refresh)
     return { ...q.rows[0].data, syncedAt: q.rows[0].synced_at };
   const data = await catalog();
   const r = await db().query(
     "INSERT INTO master_cache(company_id,mode,kind,data) VALUES($1,$2,$3,$4) ON CONFLICT(company_id,mode,kind) DO UPDATE SET data=$4,synced_at=now() RETURNING synced_at",
-    [a.company, mode(), "catalog", JSON.stringify(data)],
+    [a.company, mode(), catalogKey(), JSON.stringify(data)],
   );
   return { ...data, syncedAt: r.rows[0].synced_at };
 }
@@ -185,6 +189,8 @@ export async function save(
   }
 }
 export async function submit(a: Actor, id: string, version: number) {
+  if (mode() === "live")
+    throw new HttpError(403, "Phase 1 อ่านข้อมูลเท่านั้น ไม่อนุญาตสร้างเอกสาร");
   if (a.role === "editor") throw new HttpError(403, "ไม่มีสิทธิ์ส่งเอกสาร");
   const d = await read(a, id);
   if (d.status !== "draft" && d.status !== "failed")

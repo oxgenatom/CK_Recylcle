@@ -9,8 +9,8 @@ Checked 2026-10-08 against the official [OpenAPI schema](https://developers.flow
 | Default purchase price | productLists[*].buyPrice (without VAT); buySettings.vatType retained |
 | Receipt date | publishedOn, dueDate; initial creditDays=0, creditType=1 |
 | User reference | reference, preserved exactly |
-| Local receipt UUID | externalDocumentId=ck-UUID; not an idempotency key |
-| Buyer | local database only; never salesName/contactPerson/remarks |
+| Local receipt UUID | retained local diff compacts UUID after ck- to fit 36 characters; not an idempotency key |
+| Buyer | Phase 1 local draft only; owner confirmed salesName for Phase 2 |
 | Warehouse | local only; no field confirmed in SimpleDocument |
 | PO | local only; POST /upgrade/purchases is a separate workflow; not implemented |
 | Notes | remarks, only explicit user notes |
@@ -25,4 +25,9 @@ SimpleDocument discount percentage is limited to four decimals; a baht amount ma
 No idempotency support was assumed. Do not retry POST after timeout or any ambiguous response. Known rejected mock submissions can be edited and resent. All live unconfirmed HTTP failures remain unknown until reviewed. Reconciliation reads an explicitly supplied Flow ID and compares the external ID and amount. A missing search result is not evidence that a document was never created.
 
 Required UAT: actual token acquisition; contacts across pages; multiple product units; product deletion; positive-ID response contract; quantities/prices at 4 decimals; midpoint rounding; tax behavior; discount requirements; contact tax/branch fields; POST failure semantics; interruption after external success; stock behavior; PO upgrade and partial receipts if requested. No production calls have been made.
-Current revision: all outgoing API requests are pinned to the Sandbox /test base, reject redirects, and cannot fall back to /v1. Transport tests use simulated HTTP and do not demonstrate actual Sandbox credentials or account contents. The dedicated read-only check emits counts/status only; never tokens, upstream bodies or supplier/product data.
+Previous revision pinned outgoing API requests to Sandbox /test. Phase 1 adds an explicit Production read configuration and keeps SandboxTransport tests isolated. Redirects remain rejected. Checks emit sanitized status only; never tokens, upstream bodies or supplier/product data.
+# Phase 1 update — 8 October 2026
+
+The mappings below predate Phase 1. Current live transport permits token POST plus GET contacts/product-masters only. Production reads require explicit configuration; Sandbox-only transport tests remain unchanged. Purchase submission and reconciliation are disabled in the app. The buyer `salesName` mapping confirmed by the owner belongs to Phase 2; no receipt was created to test it here.
+
+Current official references checked: [supplier types and page-size update](https://blogv2.flowaccount.com/announcements/Jun-10-2026), [product pagination](https://developers.flowaccount.com/tutorial/product-api/get-product/), [product-list unit IDs](https://developers.flowaccount.com/tutorial/product-api/). Use pageSize=100, below the June 2026 limit of 200 (the older product guide still mentions 250).

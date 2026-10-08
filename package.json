@@ -15,7 +15,11 @@
     "test:production": "tsx scripts/production-smoke.ts",
     "test:migrations": "tsx scripts/verify-migrations.ts",
     "check:sandbox": "tsx scripts/check-sandbox.ts",
-    "dev:sandbox": "tsx scripts/mock-server.ts --sandbox"
+    "dev:sandbox": "tsx scripts/mock-server.ts --sandbox",
+    "dev:catalog:sandbox": "tsx scripts/mock-server.ts --catalog",
+    "dev:catalog:production": "tsx scripts/mock-server.ts --catalog --production",
+    "check:catalog:sandbox": "tsx scripts/check-catalog.ts",
+    "check:catalog:production": "tsx scripts/check-catalog.ts --production"
   },
   "dependencies": {
     "decimal.js": "^10.6.0",

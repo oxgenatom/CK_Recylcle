@@ -1,4 +1,4 @@
-import { SANDBOX_BASE } from "./config";
+import { SANDBOX_BASE, PRODUCTION_BASE } from "./config";
 import { OutcomeUnknown, documentResult } from "./core";
 type Options = {
   baseUrl: string;
@@ -6,6 +6,7 @@ type Options = {
   clientSecret: string;
   fetcher?: typeof fetch;
   beforeRequest?: () => Promise<void>;
+  readOnly?: boolean;
 };
 // No environment access or logging here; imported only by server integration and CLI/tests.
 export class SandboxTransport {
@@ -13,7 +14,11 @@ export class SandboxTransport {
   private requesting?: Promise<string>;
   private fetcher: typeof fetch;
   constructor(private options: Options) {
-    if (options.baseUrl !== SANDBOX_BASE) throw new Error("sandbox_only");
+    if (
+      options.baseUrl !== SANDBOX_BASE &&
+      !(options.readOnly && options.baseUrl === PRODUCTION_BASE)
+    )
+      throw new Error("sandbox_only");
     this.fetcher = options.fetcher ?? fetch;
   }
   async token(): Promise<string> {
@@ -29,7 +34,7 @@ export class SandboxTransport {
   }
   private async requestToken() {
     await this.options.beforeRequest?.();
-    const r = await this.fetcher(SANDBOX_BASE + "/token", {
+    const r = await this.fetcher(this.options.baseUrl + "/token", {
       method: "POST",
       redirect: "error",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -64,11 +69,16 @@ export class SandboxTransport {
     return data.access_token as string;
   }
   async get(path: string): Promise<any> {
+    if (
+      this.options.readOnly &&
+      !/^\/(contacts|product-masters)\?currentPage=\d+&pageSize=100$/.test(path)
+    )
+      throw new Error("catalog_path_invalid");
     if (!/^\/(contacts|product-masters|purchases)(\/\d+)?(\?.*)?$/.test(path))
       throw new Error("sandbox_path_invalid");
     const access = await this.token();
     await this.options.beforeRequest?.();
-    const r = await this.fetcher(SANDBOX_BASE + path, {
+    const r = await this.fetcher(this.options.baseUrl + path, {
       redirect: "error",
       headers: { Authorization: "Bearer " + access },
       signal: AbortSignal.timeout(10000),
@@ -79,6 +89,7 @@ export class SandboxTransport {
   }
   // Caller reserves the budget before claiming the database state. Exactly one POST, no retry.
   async purchase(body: unknown, access: string) {
+    if (this.options.readOnly) throw new Error("catalog_read_only");
     try {
       const r = await this.fetcher(SANDBOX_BASE + "/purchases", {
         method: "POST",
@@ -97,5 +108,10 @@ export class SandboxTransport {
         ? e
         : new OutcomeUnknown("sandbox_transport_or_response_error");
     }
+  }
+}
+export class CatalogTransport extends SandboxTransport {
+  constructor(options: Omit<Options, "readOnly">) {
+    super({ ...options, readOnly: true });
   }
 }

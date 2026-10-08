@@ -21,6 +21,7 @@ const child = spawn(
       NEXTAUTH_SECRET: randomBytes(32).toString("hex"),
       MOCK_LOGIN_ENABLED: "true",
       LOCAL_SANDBOX_LOGIN_ENABLED: "true",
+      LOCAL_CATALOG_LOGIN_ENABLED: "true",
       FLOW_MODE: "mock",
     },
   },
@@ -41,30 +42,33 @@ try {
   }
   assert.ok(up, "Production server failed to start");
   assert.equal((await fetch(url + "/api/receipts")).status, 401);
+  assert.equal((await fetch(url + "/api/masters")).status, 401);
   const csrf = await fetch(url + "/api/auth/csrf");
   const data = await csrf.json();
   const cookie = csrf.headers
     .getSetCookie()
     .map((s) => s.split(";")[0])
     .join("; ");
-  const res = await fetch(url + "/api/auth/callback/credentials", {
-    method: "POST",
-    headers: {
-      Cookie: cookie,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: new URLSearchParams({
-      csrfToken: data.csrfToken,
-      user: "mock-user",
-      callbackUrl: url,
-      json: "true",
-    }),
-    redirect: "manual",
-  });
-  const result = await res.json();
-  assert.match(result.url, /CredentialsSignin/);
+  for (const user of ["mock-user", "sandbox-user", "catalog-user"]) {
+    const res = await fetch(url + "/api/auth/callback/credentials", {
+      method: "POST",
+      headers: {
+        Cookie: cookie,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        csrfToken: data.csrfToken,
+        user,
+        callbackUrl: url,
+        json: "true",
+      }),
+      redirect: "manual",
+    });
+    const result = await res.json();
+    assert.match(result.url, /CredentialsSignin/);
+  }
   console.log(
-    "Production smoke passed: page 200, protected API 401, mock login denied even when flag true",
+    "Production smoke passed: page 200, protected APIs 401, all local logins denied even when flags true",
   );
 } finally {
   child.kill();

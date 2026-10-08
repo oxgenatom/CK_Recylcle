@@ -1,5 +1,17 @@
 import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
+import nextEnv from "@next/env";
+nextEnv.loadEnvConfig(process.cwd(), true);
+const localSecrets = Object.entries(process.env)
+  .filter(
+    ([key, value]) =>
+      /^(FLOW_CLIENT_ID|FLOW_CLIENT_SECRET|OIDC_CLIENT_SECRET|NEXTAUTH_SECRET|DATABASE_URL)$/.test(
+        key,
+      ) &&
+      value &&
+      value.length >= 8,
+  )
+  .map(([, value]) => value!);
 const files = execFileSync("git", ["ls-files", "-z"], { encoding: "utf8" })
   .split("\0")
   .filter(Boolean);
@@ -16,11 +28,13 @@ for (const f of files) {
   const text = await readFile(f, "utf8");
   if (patterns.some((p) => p.test(text)))
     problems.push(f + ": possible secret");
+  if (localSecrets.some((secret) => text.includes(secret)))
+    problems.push(f + ": configured secret found (value suppressed)");
 }
 if (problems.length) {
   console.error(problems.join("\n"));
   process.exit(1);
 }
 console.log(
-  `Basic secret scan passed for ${files.length} tracked/staged files. This is a heuristic scan, not a guarantee.`,
+  `Heuristic and exact configured-secret scans passed for ${files.length} tracked/staged files. This is not a guarantee.`,
 );

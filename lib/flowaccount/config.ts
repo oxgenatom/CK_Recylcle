@@ -1,4 +1,26 @@
 export const SANDBOX_BASE = "https://openapi.flowaccount.com/test";
+export const PRODUCTION_BASE = "https://openapi.flowaccount.com/v1";
+// Production must be selected explicitly; never infer it from credentials.
+export function catalogConfig(
+  env: Record<string, string | undefined> = process.env,
+) {
+  if (env.FLOW_ENVIRONMENT !== "production") {
+    if (env.FLOW_ENVIRONMENT && env.FLOW_ENVIRONMENT !== "sandbox")
+      throw new Error("flow_environment_invalid");
+    return sandboxConfig(env);
+  }
+  if (
+    env.FLOW_BASE_URL !== PRODUCTION_BASE ||
+    env.FLOW_PRODUCTION_READ_APPROVED !== "true"
+  )
+    throw new Error("production_read_not_configured");
+  const { clientId, clientSecret } = sandboxConfig({
+    ...env,
+    FLOW_BASE_URL: SANDBOX_BASE,
+    FLOW_API_APPROVED: "true",
+  });
+  return { baseUrl: PRODUCTION_BASE, clientId, clientSecret };
+}
 export function sandboxConfig(
   env: Record<string, string | undefined> = process.env,
 ) {

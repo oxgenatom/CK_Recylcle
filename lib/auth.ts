@@ -2,6 +2,7 @@ import "server-only";
 import { getServerSession, type NextAuthOptions } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { db } from "./db";
+import { oidcSubject, localIdentityAllowed } from "./phase2-config";
 import type { Actor } from "./model";
 import { localCatalogLoginAllowed } from "./flowaccount/access";
 export function mockLoginAllowed() {
@@ -42,7 +43,7 @@ export const authOptions: NextAuthOptions = {
             idToken: true,
             checks: ["pkce", "state"] as ("pkce" | "state")[],
             profile(p: Record<string, string>) {
-              return { id: p.sub, name: p.name, email: p.email };
+              return { id: oidcSubject(p), name: p.name, email: p.email };
             },
           },
         ]
@@ -107,6 +108,8 @@ export async function actor(): Promise<Actor> {
   const session = await getServerSession(authOptions);
   const id = (session as unknown as { identity?: string } | null)?.identity;
   if (!id) throw new HttpError(401, "กรุณาเข้าสู่ระบบ");
+  if (!localIdentityAllowed(id, process.env))
+    throw new HttpError(403, "บัญชีทดสอบใช้ได้เฉพาะเครื่อง local");
   if (id === "catalog-user" && !localCatalogLoginAllowed())
     throw new HttpError(403, "บัญชีทดสอบใช้ได้เฉพาะเครื่อง local");
   const company = process.env.APP_COMPANY_ID;

@@ -22,6 +22,9 @@ async function run(file: string, args: string[] = []) {
           DATABASE_URL: "postgres://postgres@127.0.0.1:54330/postgres",
           DATABASE_CA_BASE64: "",
           APP_COMPANY_ID: "migration-test",
+          CK_DB_ENVIRONMENT: "staging",
+          CK_STAGING_DB_HOST: "127.0.0.1",
+          CK_STAGING_DB_NAME: "postgres",
         },
       },
     );

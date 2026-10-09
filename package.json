@@ -19,7 +19,8 @@
     "dev:catalog:sandbox": "tsx scripts/mock-server.ts --catalog",
     "dev:catalog:production": "tsx scripts/mock-server.ts --catalog --production",
     "check:catalog:sandbox": "tsx scripts/check-catalog.ts",
-    "check:catalog:production": "tsx scripts/check-catalog.ts --production"
+    "check:catalog:production": "tsx scripts/check-catalog.ts --production",
+    "check:phase2": "tsx scripts/check-phase2.ts"
   },
   "dependencies": {
     "decimal.js": "^10.6.0",

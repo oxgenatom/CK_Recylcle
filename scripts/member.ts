@@ -1,3 +1,4 @@
+import { requireStagingTarget } from "../lib/phase2-config";
 import { dbConfig } from "../lib/db-config";
 import nextEnv from "@next/env";
 import { Pool } from "pg";
@@ -11,6 +12,7 @@ if (
   throw new Error(
     "Usage: npm run db:member -- issuer|subject editor|sender|admin (APP_COMPANY_ID required)",
   );
+requireStagingTarget(process.env);
 const p = new Pool(dbConfig());
 await p.query(
   "INSERT INTO companies(id,name) VALUES($1,$2) ON CONFLICT DO NOTHING",

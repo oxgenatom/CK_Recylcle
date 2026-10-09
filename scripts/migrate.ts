@@ -1,8 +1,10 @@
+import { requireStagingTarget } from "../lib/phase2-config";
 import { dbConfig } from "../lib/db-config";
 import nextEnv from "@next/env";
 import { Pool } from "pg";
 import { readFile, readdir } from "node:fs/promises";
 nextEnv.loadEnvConfig(process.cwd());
+requireStagingTarget(process.env);
 const pool = new Pool(dbConfig());
 const c = await pool.connect();
 try {

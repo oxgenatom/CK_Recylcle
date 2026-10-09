@@ -84,3 +84,7 @@ Put actual FLOW_CLIENT_ID and FLOW_CLIENT_SECRET in ignored `.env.local` on your
 Legacy `npm run dev:sandbox` still uses the isolated `.local/sandbox-db` and `sandbox-user` login; live purchases are now blocked there too. Prefer `dev:catalog:sandbox` for Phase 1. Neither local helper verifies Railway or hosted OIDC. No migration is added in this Phase; Railway migration/provisioning awaits Phase 2.
 
 See [current feature verification](docs/STATUS.md) for mock/service distinctions and outstanding setup.
+
+## Phase 2 staging setup (in progress)
+
+Start with [Railway → OIDC → Vercel instructions and verification status](docs/PHASE2.md). Run `npm run check:phase2 -- --database` for sanitized read-only PostgreSQL preflight, then `npm run check:phase2` once OIDC is configured. `db:migrate` and `db:member` now require CK_DB_ENVIRONMENT=staging plus CK_STAGING_DB_HOST/CK_STAGING_DB_NAME matching the owner-confirmed database. No real-service Phase 2 success is claimed yet. Live FlowAccount writes remain disabled.

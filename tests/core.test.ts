@@ -114,7 +114,7 @@ test("supplier types 5 and 7 only and product-list IDs/units", () => {
   );
   assert.equal(rows[1].masterId, "11");
 });
-test("payload preserves reference and never repurposes buyer/warehouse/PO", () => {
+test("payload preserves reference and approved salesName mapping; warehouse and PO stay local", () => {
   const b: Snapshot = {
     ...d,
     supplier: mockSuppliers[0],
@@ -124,7 +124,9 @@ test("payload preserves reference and never repurposes buyer/warehouse/PO", () =
   assert.equal(p.items[0].id, 201);
   assert.equal(p.reference, "INV-01");
   assert.equal(p.externalDocumentId, "ck-local-id");
-  assert.equal(JSON.stringify(p).includes(d.buyer), false);
+  assert.equal(p.salesName, d.buyer);
+  assert.equal("warehouse" in p, false);
+  assert.equal("po" in p, false);
   assert.equal(p.grandTotal, 90.95);
 });
 test("ambiguous success remains unknown; require both ID and document number", () => {
@@ -140,4 +142,12 @@ test("ambiguous success remains unknown; require both ID and document number", (
     OutcomeUnknown,
   );
   assert.throws(() => documentResult({ status: false }), OutcomeUnknown);
+});
+test("inclusive 1070 payload keeps input price and grand total while extracting 70 VAT", () => {
+  const b: Snapshot = { ...d, vatMode: "inclusive", supplier: mockSuppliers[0], items: [{ productId: "201", quantity: "1", price: "1070.00", product: mockProducts[0] }] };
+  assert.deepEqual(calculate(b), { lines: ["1070.00"], subtotal: "1070.00", discount: "0.00", taxable: "1000.00", vat: "70.00", total: "1070.00" });
+  const p = payload(b, "inclusive-test");
+  assert.equal(p.isVatInclusive, true); assert.equal(p.isVat, true);
+  assert.equal(p.items[0].pricePerUnit, 1070); assert.equal(p.items[0].total, 1070);
+  assert.equal(p.vatAmount, 70); assert.equal(p.grandTotal, 1070);
 });

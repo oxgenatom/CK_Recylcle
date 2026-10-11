@@ -7,6 +7,8 @@ type Options = {
   fetcher?: typeof fetch;
   beforeRequest?: () => Promise<void>;
   readOnly?: boolean;
+  productionPurchase?: boolean;
+  receiptReadOnly?: boolean;
 };
 // No environment access or logging here; imported only by server integration and CLI/tests.
 export class SandboxTransport {
@@ -16,7 +18,7 @@ export class SandboxTransport {
   constructor(private options: Options) {
     if (
       options.baseUrl !== SANDBOX_BASE &&
-      !(options.readOnly && options.baseUrl === PRODUCTION_BASE)
+      !((options.readOnly || options.productionPurchase || options.receiptReadOnly) && options.baseUrl === PRODUCTION_BASE)
     )
       throw new Error("sandbox_only");
     this.fetcher = options.fetcher ?? fetch;
@@ -61,7 +63,7 @@ export class SandboxTransport {
       data.expires_in <= 0 ||
       String(data.token_type).toLowerCase() !== "bearer"
     )
-      throw new Error("sandbox_auth_failed");
+      throw new Error(["invalid_client", "invalid_scope", "unsupported_grant_type"].includes(data?.error) ? "sandbox_auth_failed_" + data.error : "sandbox_auth_failed");
     this.cached = {
       token: data.access_token,
       expires: Date.now() + data.expires_in * 1000,
@@ -69,6 +71,7 @@ export class SandboxTransport {
     return data.access_token as string;
   }
   async get(path: string): Promise<any> {
+    if (this.options.receiptReadOnly && !/^\/purchases\/[1-9]\d*$/.test(path)) throw new Error("receipt_read_path_invalid");
     if (
       this.options.readOnly &&
       !/^\/(contacts|product-masters)\?currentPage=\d+&pageSize=100$/.test(path)
@@ -89,9 +92,9 @@ export class SandboxTransport {
   }
   // Caller reserves the budget before claiming the database state. Exactly one POST, no retry.
   async purchase(body: unknown, access: string) {
-    if (this.options.readOnly) throw new Error("catalog_read_only");
+    if (this.options.readOnly || this.options.receiptReadOnly) throw new Error("catalog_read_only");
     try {
-      const r = await this.fetcher(SANDBOX_BASE + "/purchases", {
+      const r = await this.fetcher(this.options.baseUrl + "/purchases", {
         method: "POST",
         redirect: "error",
         headers: {

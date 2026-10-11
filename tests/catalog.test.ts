@@ -31,8 +31,33 @@ test("production selection requires explicit environment, exact URL and read app
       FLOW_ENVIRONMENT: "production",
       FLOW_BASE_URL: PRODUCTION_BASE,
       FLOW_PRODUCTION_READ_APPROVED: "true",
+      FLOW_PRODUCTION_CLIENT_ID: "production-fixture-client",
+      FLOW_PRODUCTION_CLIENT_SECRET: "production-fixture-secret",
     }).baseUrl,
     PRODUCTION_BASE,
+  );
+});
+test("Production credentials are separate and never fall back to Sandbox credentials", () => {
+  const production = {
+    ...env,
+    FLOW_ENVIRONMENT: "production",
+    FLOW_BASE_URL: PRODUCTION_BASE,
+    FLOW_PRODUCTION_READ_APPROVED: "true",
+  };
+  assert.throws(() => catalogConfig(production), /credentials_missing/);
+  const selected = catalogConfig({
+    ...production,
+    FLOW_PRODUCTION_CLIENT_ID: "prod-client",
+    FLOW_PRODUCTION_CLIENT_SECRET: "prod-secret",
+  });
+  assert.equal(selected.clientId, "prod-client");
+  assert.equal(
+    catalogConfig({
+      ...env,
+      FLOW_PRODUCTION_CLIENT_ID: "prod-client",
+      FLOW_PRODUCTION_CLIENT_SECRET: "prod-secret",
+    }).clientId,
+    "fixture-client",
   );
 });
 test("catalog transport only POSTs token; purchases and other reads never reach fetch", async () => {

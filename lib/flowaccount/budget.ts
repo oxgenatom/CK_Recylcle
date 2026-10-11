@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "../db";
-import { HttpError } from "../auth";
+import { HttpError } from "../http-error";
 // Shared across Vercel instances. Reserve before issuing HTTP. Never retry POST.
 export async function reserve() {
   const c = await db().connect();
@@ -19,7 +19,8 @@ export async function reserve() {
         "ถึงขีดจำกัด FlowAccount กรุณารออย่างน้อย 1 นาที",
       );
     await c.query(
-      "DELETE FROM flow_request_log WHERE requested_at<now()-interval '5 minutes'",
+      "DELETE FROM flow_request_log WHERE company_id=$1 AND requested_at<now()-interval '5 minutes'",
+      [company],
     );
     await c.query("INSERT INTO flow_request_log(company_id) VALUES($1)", [
       company,

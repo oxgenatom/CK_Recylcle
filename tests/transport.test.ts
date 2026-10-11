@@ -186,6 +186,6 @@ test("Invalid token response is rejected without exposing upstream body", async 
   });
   await assert.rejects(
     s.token(),
-    (e) => e instanceof Error && e.message === "sandbox_auth_failed",
+    (e) => e instanceof Error && e.message === "sandbox_auth_failed_invalid_client" && !e.message.includes("sensitive"),
   );
 });

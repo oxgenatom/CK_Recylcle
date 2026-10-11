@@ -53,12 +53,14 @@ export type Product = {
   vatType: number;
 };
 export type Snapshot = Omit<Draft, "items"> & {
+  catalogEnvironment?: string;
   supplier: Supplier;
   items: (Draft["items"][number] & { product: Product })[];
 };
-export type Status = "draft" | "submitting" | "synced" | "failed" | "unknown";
+export type Status = "draft" | "pending_review" | "approved" | "submitting" | "synced" | "failed" | "unknown";
 export type Receipt = {
   id: string;
+  submission_job?: {status: string; draft_version: number; error_code?: string} | null;
   version: number;
   status: Status;
   body: Snapshot;
@@ -82,4 +84,7 @@ export type Actor = {
   id: string;
   company: string;
   role: "editor" | "sender" | "admin";
+  canReview?: boolean;
+  canApprove?: boolean;
+  authExpiresAt?: string;
 };

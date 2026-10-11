@@ -20,7 +20,7 @@ const report: {
   tokenVerified: false,
 };
 try {
-  const c = sandboxConfig({ ...process.env, FLOW_API_APPROVED: "true" });
+  const c = sandboxConfig({ ...process.env, FLOW_BASE_URL: SANDBOX_BASE, FLOW_API_APPROVED: "true" });
   let calls: number[] = [];
   let pages = 0;
   const s = new SandboxTransport({

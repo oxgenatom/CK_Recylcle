@@ -139,6 +139,17 @@ test("mobile/tablet draft persists after reload, decimal total, review and submi
     "10",
   );
   await expect(page.locator(".total b")).toHaveText("90.95 ฿");
+  await page.getByLabel("จำนวนรับ 1", { exact: true }).fill("12");
+  await page.getByText("ภาษี ส่วนลด และข้อมูลเพิ่มเติม", { exact: true }).click();
+  await page.getByLabel("ส่วนลดทั้งเอกสาร (บาท)", { exact: true }).fill("5");
+  await page.getByRole("button", { name: "เก็บร่าง", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("บันทึกบนเซิร์ฟเวอร์แล้ว");
+  await page.context().clearCookies();
+  await login(page.request);
+  await page.reload();
+  await page.getByRole("button").filter({ hasText: "UI-" + test.info().project.name }).click();
+  await expect(page.getByLabel("จำนวนรับ 1", { exact: true })).toHaveValue("12");
+  await expect(page.locator(".total b")).toHaveText("103.79 ฿");
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,
@@ -154,7 +165,7 @@ test("mobile/tablet draft persists after reload, decimal total, review and submi
   ).toBeVisible();
   await page.getByRole("button", { name: "ยืนยันส่ง (จำลอง)" }).click();
   await expect(page.getByRole("status")).toContainText(
-    process.env.MOCK_SCENARIO === "timeout" ? "ไม่ทราบผล" : "สร้างเอกสารแล้ว",
+    process.env.MOCK_SCENARIO === "timeout" ? "รอตรวจสอบ" : "สร้างเอกสารแล้ว",
   );
 });
 test("cross-company document is hidden and interrupted submission becomes unknown", async ({

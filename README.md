@@ -88,3 +88,6 @@ See [current feature verification](docs/STATUS.md) for mock/service distinctions
 ## Phase 2 staging setup (in progress)
 
 Start with [Railway → OIDC → Vercel instructions and verification status](docs/PHASE2.md). Run `npm run check:phase2 -- --database` for sanitized read-only PostgreSQL preflight, then `npm run check:phase2` once OIDC is configured. `db:migrate` and `db:member` now require CK_DB_ENVIRONMENT=staging plus CK_STAGING_DB_HOST/CK_STAGING_DB_NAME matching the owner-confirmed database. No real-service Phase 2 success is claimed yet. Live FlowAccount writes remain disabled.
+# Current staging catalog workflow (11 October 2026)
+
+See [Production catalog and staging drafts](docs/PRODUCTION-CATALOG-STAGING.md) for the current username/password workflow, separate Production/Sandbox credentials, resumable pagination and real-service acceptance results. Earlier phase notes below are historical. Live FlowAccount document writes remain disabled.

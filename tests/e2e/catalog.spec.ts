@@ -16,14 +16,14 @@ test("catalog failure shows retry; empty search and multiple units remain usable
   let fail = true;
   await page.route("**/api/masters", async (route) => {
     if (fail) {
-      fail = false;
       await route.fulfill({ status: 503, json: { error: "fixture outage" } });
     } else await route.continue();
   });
   await page.goto("/");
   await expect(
-    page.getByText("โหลดผู้จำหน่ายและสินค้าไม่ได้", { exact: false }),
+    page.getByText("fixture outage", { exact: false }),
   ).toBeVisible();
+  fail = false;
   await page.getByRole("button", { name: "ลองใหม่", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "ลองใหม่", exact: true }),

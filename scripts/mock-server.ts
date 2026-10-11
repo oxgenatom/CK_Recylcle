@@ -67,6 +67,7 @@ if (catalog)
     "INSERT INTO companies(id,name) VALUES('catalog-company','CK Local Catalog') ON CONFLICT DO NOTHING; INSERT INTO profiles(identity) VALUES('catalog-user') ON CONFLICT DO NOTHING; INSERT INTO memberships(identity,company_id,role) VALUES('catalog-user','catalog-company','editor') ON CONFLICT DO NOTHING;",
   );
 if (test) {
+  await d.exec("INSERT INTO profiles(identity) VALUES('mock-approver'),('mock-reviewer'),('mock-sender'); INSERT INTO memberships(identity,company_id,role,can_review,can_approve) VALUES('mock-approver','mock-company','editor',true,true),('mock-reviewer','mock-company','editor',true,false),('mock-sender','mock-company','sender',false,false)");
   const raw = {
     supplierId: "101",
     buyer: "stale test",
@@ -115,6 +116,7 @@ const child = spawn(
       ...process.env,
       DATABASE_URL: "postgres://postgres@127.0.0.1:54329/postgres",
       DATABASE_CA_BASE64: "",
+      DATABASE_TLS_SERVERNAME: "",
       DB_POOL_MAX: "1",
       APP_COMPANY_ID: catalog
         ? "catalog-company"

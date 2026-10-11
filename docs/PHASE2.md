@@ -38,3 +38,12 @@ Choose backup owner, retention and RPO/RTO. Enable scheduled Railway backups and
 - Not tested: Railway TLS/connectivity/migrations/persistence/concurrency/restore; real OIDC login/revocation; Vercel deployment.
 - Blocked by setup: staging services, provider and first administrator not selected/provisioned.
 
+
+## Railway staging verification — 10 October 2026
+
+- Authenticated connection through the public TCP proxy passed with the operator-provided CA. The server certificate was signed by that CA and identified postgres.railway.internal. DATABASE_TLS_SERVERNAME preserves CA and hostname verification through the proxy; certificate verification is not disabled.
+- Applied migrations 001_initial.sql, 002_api_budget.sql and 003_users_items.sql on the confirmed CK Recycle staging database.
+- Created the CK Recycle company record; no administrator identity has been guessed or provisioned.
+- Real staging SQL draft read/write and stale-version checks passed inside a transaction; the test draft was rolled back. This is database evidence, not browser persistence/login evidence.
+- Selected Google OIDC and configured its issuer. Google OAuth client credentials, staging origin and the initial administrator identity are still needed. No live FlowAccount receipt was created.
+- NEXTAUTH_SECRET generated locally and ignored by Git. No value is published here.

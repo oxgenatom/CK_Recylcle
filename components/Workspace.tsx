@@ -23,10 +23,12 @@ const blank = (): Draft => ({
 });
 const labels: Record<string, string> = {
   draft: "ฉบับร่าง",
+  pending_review: "รอตรวจทาน",
+  approved: "อนุมัติพร้อมส่ง",
   submitting: "กำลังส่ง",
   synced: "สร้างเอกสารแล้ว",
   failed: "ส่งไม่สำเร็จ",
-  unknown: "ไม่ทราบผล · ต้องตรวจสอบ",
+  unknown: "รอตรวจสอบ · ห้ามส่งซ้ำ",
 };
 async function api(path: string, method = "GET", body?: unknown) {
   const res = await fetch("/api/" + path, {
@@ -40,7 +42,9 @@ async function api(path: string, method = "GET", body?: unknown) {
   return data;
 }
 export default function Workspace() {
-  const [me, setMe] = useState<(Actor & { mode: string }) | null>(null),
+  const [me, setMe] = useState<
+      (Actor & { mode: string; catalogEnvironment: string; submissionEnabled: boolean }) | null
+    >(null),
     [ready, setReady] = useState(false),
     [error, setError] = useState(""),
     [message, setMessage] = useState(""),
@@ -59,13 +63,17 @@ export default function Workspace() {
     [search, setSearch] = useState(""),
     [supplierSearch, setSupplierSearch] = useState(""),
     [catalogLoading, setCatalogLoading] = useState(false),
+    [catalogProgress, setCatalogProgress] = useState(""),
     [catalogError, setCatalogError] = useState(""),
     [history, setHistory] = useState<
-      { actor: string; action: string; created_at: string }[]
+      { actor: string; action: string; created_at: string; detail?: { flowStatus?: string; code?: string; reason?: string } }[]
     >([]),
+    [reviewReason, setReviewReason] = useState(""),
     [flowId, setFlowId] = useState("");
   useKeyboardViewport(editing);
-  const editable = !selected || ["draft", "failed"].includes(selected.status);
+  const canEdit = !me || ["editor","admin"].includes(me.role);
+  const editable = canEdit && (!selected || ["draft", "failed", "approved", "pending_review"].includes(selected.status));
+  const viewingReview = review || !!selected && ["pending_review","approved"].includes(selected.status);
   const supplierMatches = suppliers.filter((s) =>
     (s.name + " " + s.taxId)
       .toLowerCase()
@@ -110,17 +118,29 @@ export default function Workspace() {
     setCatalogLoading(true);
     setCatalogError("");
     try {
-      const c = await api(
+      let c = await api(
         "masters",
         refresh ? "POST" : "GET",
         refresh ? {} : undefined,
       );
+      while (c.loading) {
+        setCatalogProgress(
+          `${c.progress?.kind === "contacts" ? "ผู้ติดต่อ" : "สินค้า"} · โหลดแล้ว ${c.progress?.loaded ?? 0}${c.progress?.total === undefined ? "" : " / " + c.progress.total} รายการ`,
+        );
+        await new Promise((resolve) =>
+          setTimeout(resolve, c.retryAfterMs || 3500),
+        );
+        c = await api("masters");
+      }
+      setCatalogProgress("");
       setSuppliers(c.suppliers);
       setProducts(c.products);
       setSyncedAt(c.syncedAt);
-    } catch {
+    } catch (e) {
       setCatalogError(
-        "โหลดผู้จำหน่ายและสินค้าไม่ได้ กรุณาตรวจการเชื่อมต่อแล้วลองใหม่",
+        e instanceof Error
+          ? e.message
+          : "โหลดผู้จำหน่ายและสินค้าไม่ได้ กรุณาตรวจการเชื่อมต่อแล้วลองใหม่",
       );
     } finally {
       setCatalogLoading(false);
@@ -130,6 +150,7 @@ export default function Workspace() {
     api("me")
       .then(async (a) => {
         setMe(a);
+        setReady(true);
         await Promise.all([loadList(), loadMasters()]);
       })
       .catch((e) => setError(e.message))
@@ -144,7 +165,7 @@ export default function Workspace() {
     return () => window.removeEventListener("beforeunload", stop);
   }, [dirty]);
   useEffect(() => {
-    if (!selected || selected.status !== "submitting") return;
+    if (!selected || (selected.status !== "submitting" && !["queued","running"].includes(selected.submission_job?.status || ""))) return;
     const timer = setInterval(() => {
       api("receipts/" + selected.id)
         .then((d) => setSelected(d))
@@ -193,6 +214,8 @@ export default function Workspace() {
           <p role="alert" className="error">
             {error}
           </p>
+          <a href="/login">ชื่อผู้ใช้และรหัสผ่าน</a>
+          <a href="/account">เปลี่ยนรหัสผ่าน / จัดการพนักงาน</a>
           <button className="primary" onClick={() => signIn()}>
             เข้าสู่ระบบ
           </button>
@@ -205,6 +228,7 @@ export default function Workspace() {
         <b>
           CK Recycle <small>• รับสินค้า</small>
         </b>
+        <a href="/account">บัญชี / พนักงาน</a>
         <button onClick={() => signOut()}>ออกจากระบบ</button>
       </header>
       <main>
@@ -213,7 +237,7 @@ export default function Workspace() {
             <small>
               {me.mode === "mock"
                 ? "โหมดทดสอบ · ไม่มีเอกสารจริง"
-                : "FlowAccount · Phase 1 อ่านข้อมูลเท่านั้น"}
+                : `FlowAccount ${me.catalogEnvironment === "production" ? "Production" : "Sandbox"} · ${me.submissionEnabled ? (me.catalogEnvironment === "production" ? "อนุญาตเฉพาะร่างที่อนุมัติหนึ่งใบ" : "เปิดส่ง Sandbox") : "ยังไม่เปิดส่ง"} · ร่างเก็บบน staging`}
             </small>
             <h1>{editing ? "รับสินค้าเข้าคลัง" : "รายการใบรับสินค้า"}</h1>
           </div>
@@ -228,7 +252,7 @@ export default function Workspace() {
         {catalogLoading && (
           <p role="status">
             กำลังโหลดผู้จำหน่ายและสินค้าจาก{" "}
-            {me.mode === "mock" ? "Mock" : "FlowAccount"}…
+            {me.mode === "mock" ? "Mock" : "FlowAccount"}… {catalogProgress}
           </p>
         )}
         {catalogError && (
@@ -247,6 +271,19 @@ export default function Workspace() {
             </button>
           </div>
         )}
+        {!catalogLoading &&
+          !catalogError &&
+          syncedAt &&
+          (!suppliers.length || !products.length) && (
+            <p className="card" role="status">
+              FlowAccount ตอบกลับสำเร็จ แต่
+              {!suppliers.length ? "ไม่มีผู้จำหน่าย" : ""}
+              {!suppliers.length && !products.length ? "และ" : ""}
+              {!products.length ? "ไม่มีสินค้า" : ""}
+              ในบัญชีนี้ กรุณาตรวจข้อมูล FlowAccount แล้วกดอัปเดตข้อมูล
+              ไม่มีการใช้ข้อมูลจำลองแทน
+            </p>
+          )}
         {!editing ? (
           <>
             <section className="card">
@@ -501,8 +538,7 @@ export default function Workspace() {
                         />
                       </label>
                       <p className="note">
-                        Phase 1 เก็บผู้สั่งซื้อในร่างบนเว็บ ยังไม่ส่งเอกสารไป
-                        FlowAccount
+                        ผู้สั่งซื้อจะส่งเป็น salesName (ชื่อผู้สร้าง/พนักงานขายใน FlowAccount ตาม mapping ที่ยืนยันไว้)
                       </p>
                     </details>
                   </section>
@@ -518,7 +554,7 @@ export default function Workspace() {
                       />
                     </label>
                     <div className="results">
-                      {productMatches.map((p) => (
+                      {productMatches.slice(0, 50).map((p) => (
                         <button
                           key={p.id}
                           disabled={catalogLoading}
@@ -542,6 +578,12 @@ export default function Workspace() {
                         </button>
                       ))}
                     </div>
+                    {productMatches.length > 50 && (
+                      <p>
+                        แสดง 50 จาก {productMatches.length} รายการ
+                        กรุณาค้นหาชื่อหรือรหัสเพื่อจำกัดผลลัพธ์
+                      </p>
+                    )}
                     {!catalogLoading &&
                       !catalogError &&
                       !productMatches.length && (
@@ -628,11 +670,16 @@ export default function Workspace() {
                 </section>
               </div>
             </fieldset>
-            {review && selected && (
+            {viewingReview && selected && (
               <section className="card review">
-                <h2>ตรวจสอบก่อนส่ง</h2>
+                <h2>{me.catalogEnvironment === "production" ? "FlowAccount Production — สร้างเอกสารจริง" : "ตรวจสอบก่อนส่ง"}</h2>
+                <p>Draft ID: {selected.id} · Environment: {me.mode === "mock" ? "Mock" : me.catalogEnvironment} · version {selected.version}</p>
+                <p>สถานะหลังสร้าง: รออนุมัติ · ผู้สั่งซื้อส่งเป็น salesName (ชื่อผู้สร้าง/พนักงานขาย ตาม mapping เดิม) · คลังและ PO ไม่ส่ง</p>
+                <p>ที่อยู่: {selected.body.supplier.address} {selected.body.supplier.zip} · เลขภาษี: {selected.body.supplier.taxId || "—"} · สาขา: {selected.body.supplier.branch} {selected.body.supplier.branchCode}</p>
+                <p>ครบกำหนด: {selected.body.date} · หมายเหตุ: {selected.body.notes || "—"} · คลัง: {selected.body.warehouse || "—"} · PO: {selected.body.po || "—"}</p>
                 <p>
                   {selected.body.supplier.name}
+                  {" · contactId: "}{selected.body.supplierId}
                   <br />
                   ผู้สั่งซื้อ: {selected.body.buyer}
                   <br />
@@ -641,7 +688,7 @@ export default function Workspace() {
                 </p>
                 {selected.body.items.map((i, k) => (
                   <p key={k}>
-                    {i.product.name} · {i.quantity} {i.product.unit} × {i.price}{" "}
+                    {i.product.name} · {i.product.code} · product-list ID: {i.product.id} · {i.quantity} {i.product.unit} × {i.price}{" "}
                     = {selected.totals.lines[k]}
                   </p>
                 ))}
@@ -654,17 +701,18 @@ export default function Workspace() {
                   <b>{selected.totals.discount}</b>
                 </div>
                 <div className="row">
-                  <span>ฐานภาษี / VAT</span>
+                  <span>ฐานภาษี / VAT 7% {selected.body.vatMode === "inclusive" ? "รวมภาษี" : selected.body.vatMode === "exclusive" ? "ไม่รวมภาษี" : "ไม่มี VAT"}</span>
                   <b>
                     {selected.totals.taxable} / {selected.totals.vat}
                   </b>
                 </div>
+                <div className="row"><span>ยอดสุทธิ</span><b>{selected.totals.total} ฿</b></div>
                 <p className="note">
                   {me.mode === "mock"
                     ? "ยืนยันแล้วจะสร้างผลจำลองในฐานข้อมูลทดสอบ"
-                    : "Phase 1 ตรวจสอบร่างเท่านั้น ยังไม่ส่งเอกสารไป FlowAccount"}
+                    : me.submissionEnabled ? `ยืนยันแล้วสร้างใบรับสินค้าใน ${me.catalogEnvironment} สถานะรออนุมัติ` : "ตรวจทานเท่านั้น ยังไม่อนุญาตส่งเอกสาร"}
                 </p>
-                <button onClick={() => setReview(false)}>กลับไปแก้ไข</button>
+                <button onClick={() => setReview(false)}>กลับไปหน้าร่าง</button>
               </section>
             )}
             {selected && (
@@ -689,9 +737,29 @@ export default function Workspace() {
                   <p key={i}>
                     {new Date(h.created_at).toLocaleString("th-TH")} · {h.actor}{" "}
                     · {labels[h.action] || h.action}
+                    {h.detail?.reason ? ` · เหตุผล: ${h.detail.reason}` : ""}
+                    {h.detail?.flowStatus ? ` · สถานะ FlowAccount: ${h.detail.flowStatus}` : ""}
+                    {h.detail?.code ? " · ผลส่งไม่ชัดเจน ต้องตรวจใน FlowAccount ก่อนส่งซ้ำ" : ""}
                   </p>
                 ))}
               </details>
+            )}
+            {selected && (me.catalogEnvironment === 'production' || me.mode === 'mock') && (
+              <section className="card">
+                <p aria-live="polite">งานส่ง: {({queued:'กำลังส่ง · รอ worker',running:'กำลังส่ง',finished:'ตรวจผลจากสถานะเอกสาร',blocked:'หยุดก่อนส่ง/ต้องตรวจประวัติ',unknown:'รอตรวจสอบ · ห้ามส่งซ้ำ'} as Record<string,string>)[selected.submission_job?.status || ''] || 'ยังไม่ได้ส่งเข้าคิว'}</p>
+                <p>การแก้ร่างหลังอนุมัติจะยกเลิก approval เดิม อนุมัติร่างใน CK Recycle คืออนุญาตให้ส่ง เอกสาร FlowAccount จะยังรออนุมัติ ไม่มีการอนุมัติหรือชำระเงินผ่านระบบนี้</p>
+                <label>เหตุผลตรวจทาน<textarea value={reviewReason} maxLength={1000} onChange={e => setReviewReason(e.target.value)} /></label>
+                {[
+                  {action:'request-review',text:'ขอตรวจทาน',show:selected.status === 'draft' && ['editor','admin'].includes(me.role)},
+                  {action:'approve',text:'อนุมัติพร้อมส่ง',show:selected.status === 'pending_review' && me.canApprove},
+                  {action:'return',text:'ตีกลับ',show:selected.status === 'pending_review' && (me.canReview || me.canApprove)},
+                  {action:'cancel-review',text:'ยกเลิกคำขอตรวจทาน',show:selected.status === 'pending_review' && ['editor','admin'].includes(me.role)},
+                ].filter(b => b.show).map(b => <button key={b.action} disabled={busy || dirty || (b.action === 'return' && !reviewReason.trim())} onClick={() => run(async () => {
+                  await open(await api('receipts/'+selected.id+'/'+b.action,'POST',{version:selected.version,reason:reviewReason}));
+                  setReviewReason('');
+                })}>{b.text}</button>)}
+                {selected.status === 'approved' && <p className="error">ปุ่มส่ง Production จะสร้างเอกสารจริงใน FlowAccount</p>}
+              </section>
             )}
             <footer className="bottom">
               <div>
@@ -712,15 +780,15 @@ export default function Workspace() {
                   >
                     เก็บร่าง
                   </button>
-                  {review && me.mode === "live" ? (
+                  {viewingReview && !me.submissionEnabled ? (
                     <p className="note">
-                      Phase 1 ตรวจสอบร่างได้ แต่ยังไม่เปิดการส่งเอกสาร
+                      ตรวจสอบร่างได้ แต่ยังไม่เปิดการส่งเอกสาร
                     </p>
-                  ) : review ? (
+                  ) : viewingReview ? (
                     <button
                       className="primary"
                       disabled={
-                        busy || !editable || dirty || me.role === "editor"
+                        busy || (!!selected?.submission_job && !(selected.submission_job.status === "blocked" && selected.submission_job.draft_version !== selected.version)) || dirty || !selected || !["sender","admin"].includes(me.role) || (me.catalogEnvironment !== "production" && !["draft","failed"].includes(selected.status)) || (me.catalogEnvironment === "production" && selected?.status !== "approved")
                       }
                       onClick={() =>
                         run(async () => {
@@ -729,7 +797,7 @@ export default function Workspace() {
                             d = await api(
                               "receipts/" + selected!.id + "/submit",
                               "POST",
-                              { version: selected!.version },
+                              { version: selected!.version, environment: me.catalogEnvironment },
                             );
                           } catch (e) {
                             try {
@@ -760,10 +828,10 @@ export default function Workspace() {
                   ) : (
                     <button
                       className="primary"
-                      disabled={busy || !editable}
+                      disabled={busy || (!selected && !editable)}
                       onClick={() =>
                         run(async () => {
-                          await save();
+                          if (dirty || !selected) await save();
                           setReview(true);
                         })
                       }

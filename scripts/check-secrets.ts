@@ -1,18 +1,28 @@
 import { execFileSync } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import nextEnv from "@next/env";
 nextEnv.loadEnvConfig(process.cwd(), true);
 const localSecrets = Object.entries(process.env)
   .filter(
     ([key, value]) =>
-      /^(FLOW_CLIENT_ID|FLOW_CLIENT_SECRET|OIDC_CLIENT_SECRET|NEXTAUTH_SECRET|DATABASE_URL)$/.test(
+      /^(FLOW_(?:PRODUCTION_)?CLIENT_ID|FLOW_(?:PRODUCTION_)?CLIENT_SECRET|OIDC_CLIENT_SECRET|NEXTAUTH_SECRET|DATABASE_URL)$/.test(
         key,
       ) &&
       value &&
       value.length >= 8,
   )
   .map(([, value]) => value!);
-const files = execFileSync("git", ["ls-files", "-z"], { encoding: "utf8" })
+try {
+  const production = JSON.parse(await readFile('.local/production-config.json','utf8'));
+  for (const [key,value] of Object.entries(production)) {
+    if (/SECRET|CLIENT_ID|DATABASE_URL/.test(key) && typeof value === 'string' && value.length >= 8) localSecrets.push(value);
+  }
+} catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+const files = execFileSync(
+  "git",
+  ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+  { encoding: "utf8" },
+)
   .split("\0")
   .filter(Boolean);
 const patterns = [
@@ -22,6 +32,22 @@ const patterns = [
   /(?:FLOW_CLIENT_SECRET|OIDC_CLIENT_SECRET|NEXTAUTH_SECRET|DATABASE_URL)\s*=\s*["']?[A-Za-z0-9+/]{16,}/,
 ];
 const problems: string[] = [];
+try {
+  for (const f of await readdir(".next/static", {
+    recursive: true,
+    withFileTypes: true,
+  })) {
+    if (!f.isFile()) continue;
+    const path = f.parentPath + "/" + f.name;
+    const source = await readFile(path, "utf8");
+    if (localSecrets.some((secret) => source.includes(secret)))
+      problems.push(
+        "browser bundle: configured secret found (value suppressed)",
+      );
+  }
+} catch (error) {
+  if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+}
 for (const f of files) {
   if (/^\.env(?:\.|$)/.test(f) && f !== ".env.example")
     problems.push(f + ": env file tracked");

@@ -10,6 +10,7 @@ export const requiredConfig = [
 ] as const;
 export function configurationErrors(env: Environment): string[] {
   const errors: string[] = requiredConfig
+    .filter((key) => env.AUTH_MODE !== "password" || !key.startsWith("OIDC_"))
     .filter((key) => !env[key]?.trim())
     .map((key) => `${key}: missing`);
   for (const key of ["NEXTAUTH_URL", "OIDC_ISSUER"]) {

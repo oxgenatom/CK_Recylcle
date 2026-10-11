@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 const config: NextConfig = {
+  distDir: process.env.CK_E2E === "true" ? ".next-e2e" : ".next",
   poweredByHeader: false,
   async headers() {
     return [

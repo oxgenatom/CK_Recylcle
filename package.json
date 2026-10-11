@@ -4,6 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev --hostname 127.0.0.1",
+    "dev:staging": "tsx scripts/staging-server.ts",
+    "start:staging": "tsx scripts/staging-server.ts --production",
+    "start:staging:production-catalog": "tsx scripts/staging-server.ts --production --production-catalog",
     "build": "next build --webpack",
     "start": "next start --hostname 127.0.0.1",
     "typecheck": "tsc --noEmit",
@@ -20,7 +23,8 @@
     "dev:catalog:production": "tsx scripts/mock-server.ts --catalog --production",
     "check:catalog:sandbox": "tsx scripts/check-catalog.ts",
     "check:catalog:production": "tsx scripts/check-catalog.ts --production",
-    "check:phase2": "tsx scripts/check-phase2.ts"
+    "check:phase2": "tsx scripts/check-phase2.ts",
+    "worker:submission": "tsx scripts/submission-worker.ts"
   },
   "dependencies": {
     "decimal.js": "^10.6.0",

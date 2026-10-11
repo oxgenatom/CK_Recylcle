@@ -3,6 +3,7 @@
 !.env.example
 node_modules/
 .next/
+.next-e2e/
 *.log
 *.tmp
 *.tsbuildinfo
@@ -10,3 +11,8 @@ playwright-report/
 test-results/
 .local/
 docs/flowaccount.openapi.yml
+
+.vercel/
+
+.vercel
+.env*

@@ -1,4 +1,5 @@
 import { requireStagingTarget } from "../lib/phase2-config";
+import { verifyStagingDatabase } from '../lib/staging';
 import { dbConfig } from "../lib/db-config";
 import nextEnv from "@next/env";
 import { Pool } from "pg";
@@ -6,6 +7,7 @@ import { readFile, readdir } from "node:fs/promises";
 nextEnv.loadEnvConfig(process.cwd());
 requireStagingTarget(process.env);
 const pool = new Pool(dbConfig());
+if (!['localhost','127.0.0.1','[::1]'].includes(new URL(process.env.DATABASE_URL!).hostname)) await verifyStagingDatabase(pool);
 const c = await pool.connect();
 try {
   await c.query("BEGIN");

@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { actor, HttpError, mutationGuard } from "@/lib/auth";
+import { reviewAction } from "@/lib/reviews";
 import * as r from "@/lib/receipts";
 import { mode } from "@/lib/flowaccount/client";
+import { submissionEnabled } from "@/lib/flowaccount/config";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -14,14 +16,15 @@ async function handle(
     const a = await actor();
     const { path } = await params;
     const [kind, id, action] = path;
-    if (mode() === "live" && ["submit", "reconcile"].includes(action))
+    if (path.length > 3 || (action && !["history", "submit", "reconcile", "request-review", "approve", "return", "cancel-review"].includes(action))) throw new HttpError(404, "ไม่พบ API");
+    if (!submissionEnabled() && ["submit"].includes(action))
       throw new HttpError(
         403,
-        "Phase 1 อ่านข้อมูลเท่านั้น ยังไม่เปิดการส่งเอกสาร",
+        "ยังไม่อนุญาตส่งเอกสารใน environment นี้",
       );
     const u = new URL(req.url);
     if (req.method === "GET") {
-      if (kind === "me") return NextResponse.json({ ...a, mode: mode() });
+      if (kind === "me") return NextResponse.json({ ...a, mode: mode(), submissionEnabled: submissionEnabled(), catalogEnvironment: process.env.FLOW_ENVIRONMENT || "sandbox", databaseEnvironment: process.env.CK_DB_ENVIRONMENT });
       if (kind === "masters") return NextResponse.json(await r.masters(a));
       if (kind === "receipts" && !id)
         return NextResponse.json(
@@ -31,7 +34,7 @@ async function handle(
             u.searchParams.get("status") || "",
           ),
         );
-      if (kind === "receipts" && id)
+      if (kind === "receipts" && id && (!action || action === "history"))
         return NextResponse.json(
           action === "history" ? await r.history(a, id) : await r.read(a, id),
         );
@@ -42,11 +45,13 @@ async function handle(
       const text = await req.text();
       if (text.length > 100000) throw new HttpError(413, "ข้อมูลใหญ่เกินไป");
       const body = JSON.parse(text);
+      if (kind === "receipts" && id && ["request-review","approve","return","cancel-review"].includes(action) && req.method === "POST")
+        return NextResponse.json(await reviewAction(a,id,z.number().int().positive().parse(body.version),action,z.string().max(1000).parse(body.reason || "")));
       if (kind === "masters" && req.method === "POST")
         return NextResponse.json(await r.masters(a, true));
       if (kind === "receipts" && req.method === "POST" && !id)
         return NextResponse.json(await r.save(a, body));
-      if (kind === "receipts" && id && req.method === "PUT")
+      if (kind === "receipts" && id && !action && req.method === "PUT")
         return NextResponse.json(
           await r.save(
             a,
@@ -66,6 +71,7 @@ async function handle(
             a,
             id,
             z.number().int().positive().parse(body.version),
+            body.environment,
           ),
         );
       if (

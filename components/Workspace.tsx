@@ -753,7 +753,7 @@ export default function Workspace() {
                   {action:'request-review',text:'ขอตรวจทาน',show:selected.status === 'draft' && ['editor','admin'].includes(me.role)},
                   {action:'approve',text:'อนุมัติพร้อมส่ง',show:selected.status === 'pending_review' && me.canApprove},
                   {action:'return',text:'ตีกลับ',show:selected.status === 'pending_review' && (me.canReview || me.canApprove)},
-                  {action:'cancel-review',text:'ยกเลิกคำขอตรวจทาน',show:selected.status === 'pending_review' && ['editor','admin'].includes(me.role)},
+                  {action:'cancel-review',text:'ยกเลิกคำขอตรวจทาน',show:selected.status === 'pending_review' && selected.updated_by === me.id && ['editor','admin'].includes(me.role)},
                 ].filter(b => b.show).map(b => <button key={b.action} disabled={busy || dirty || (b.action === 'return' && !reviewReason.trim())} onClick={() => run(async () => {
                   await open(await api('receipts/'+selected.id+'/'+b.action,'POST',{version:selected.version,reason:reviewReason}));
                   setReviewReason('');

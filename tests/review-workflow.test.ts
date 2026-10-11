@@ -5,6 +5,7 @@ import { readFile,readdir } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
 import { PGLiteSocketServer } from '@electric-sql/pglite-socket';
 import { submissionHash,reviewAllowed } from '../lib/review-policy';
+import { payload } from '../lib/flowaccount/core';
 register('../scripts/server-cli-loader.mjs',import.meta.url);
 test('review permissions do not inherit approval from admin/sender',()=>{
   for(const role of ['admin','sender','editor']) assert.equal(reviewAllowed({role},'approve'),false);
@@ -81,6 +82,7 @@ test('transactional review, self approval, invalidation, stale version, revoke a
       const url=String(input);assert.ok(url.startsWith('https://openapi.flowaccount.com/v1/'));
       if(url.endsWith('/token'))return Response.json({access_token:'fixture-token',token_type:'bearer',expires_in:3600});
       if(url.endsWith('/purchases')){assert.equal(options?.method,'POST');posts++;throw Error('simulated_timeout');}
+      if(url.endsWith('/purchases/123')){const expected=payload(d.body,d.id);return Response.json({status:true,data:{...expected,totalWithoutVat:expected.grandTotal-expected.vatAmount,documentId:123,documentSerial:'RI-fixture-only',status:1,statusString:'awaiting'}});}
       const s=d.body.supplier,p=d.body.items[0].product;
       if(url.includes('/contacts?'))return Response.json({status:true,data:{currentPage:1,total:1,list:[{id:s.id,contactType:5,contactName:s.name,contactAddress:s.address,contactTaxId:s.taxId,contactBranch:s.branch,contactBranchCode:s.branchCode,contactGroup:s.group,contactZipCode:s.zip}]}});
       if(url.includes('/product-masters?'))return Response.json({status:true,data:{currentPage:1,total:1,list:[{id:p.masterId,name:catalogChanged?'Changed catalog name':p.name,type:p.type,buySettings:{vatType:p.vatType},productLists:[{id:p.id,unitId:p.unitId,code:p.code,unitName:p.unit,buyPrice:p.price}]}]}});
@@ -111,6 +113,10 @@ test('transactional review, self approval, invalidation, stale version, revoke a
     assert.equal((await r.read(approver,changed.id)).status,'draft');assert.equal(posts,1);
     assert.equal((await db().query("SELECT status FROM draft_reviews WHERE document_id=$1",[changed.id])).rows[0].status,'invalidated');
     assert.equal((await db().query("SELECT count(*)::int AS n FROM submission_attempts WHERE document_id=$1",[changed.id])).rows[0].n,0);
+    await db().query("UPDATE submission_jobs SET status='unknown' WHERE document_id=$1",[d.id]);
+    const reconciled=await r.reconcile(admin,d.id,'123');assert.equal(reconciled.status,'synced');assert.equal(posts,1);
+    assert.equal((await db().query("SELECT status FROM submission_jobs WHERE document_id=$1",[d.id])).rows[0].status,'finished');
+    const evidence=(await r.history(admin,d.id)).find(h=>h.action==='reconciled');assert.equal(evidence?.detail?.readback.documentId,123);
     const history=await r.history(approver,d.id);assert.ok(history.some(h=>h.detail?.reason==='fix buyer'));
   } finally { globalThis.fetch=originalFetch;await db().end();await socket.stop();await memory.close(); }
 });

@@ -521,18 +521,21 @@ export async function reconcile(a: Actor, id: string, flowId: string) {
   const c = await db().connect();
   try {
     await c.query("BEGIN");
+    const member = await c.query("SELECT role FROM memberships WHERE identity=$1 AND company_id=$2 AND active=true FOR SHARE",[a.id,a.company]);
+    if (member.rows[0]?.role !== 'admin') throw new HttpError(403,'สิทธิ์ตรวจสอบผลถูกเพิกถอน');
     const r = await c.query(
-      "UPDATE receiving_documents SET status='synced',flow_id=$1,flow_number=$2,version=version+1,updated_at=now(),updated_by=$3 WHERE id=$4 AND company_id=$5 AND mode=$6 AND status='unknown' RETURNING id",
-      [flowId, data.documentSerial, a.id, id, a.company, mode()],
+      "UPDATE receiving_documents SET status='synced',flow_id=$1,flow_number=$2,version=version+1,updated_at=now(),updated_by=$3 WHERE id=$4 AND company_id=$5 AND mode=$6 AND status='unknown' AND version=$7 RETURNING id",
+      [flowId, data.documentSerial, a.id, id, a.company, mode(), d.version],
     );
     if (!r.rowCount) throw new HttpError(409, "สถานะเปลี่ยนแล้ว");
     await c.query(
       "UPDATE submission_attempts SET status='synced',flow_id=$1,flow_number=$2,finished_at=now() WHERE document_id=$3 AND status='unknown'",
       [flowId, data.documentSerial, id],
     );
+    await c.query("UPDATE submission_jobs SET status='finished',finished_at=now(),error_code=null WHERE document_id=$1 AND status='unknown'",[id]);
     await c.query(
       "INSERT INTO audit_events(document_id,actor,action,detail) VALUES($1,$2,'reconciled',$3)",
-      [id, a.id, JSON.stringify({ flowId, flowStatus: data.status ?? null, environment: catalogEnvironment() })],
+      [id, a.id, JSON.stringify({ flowId, flowNumber:data.documentSerial, flowStatus: data.status ?? null, environment: catalogEnvironment(), readback:data, version:d.version })],
     );
     await c.query("COMMIT");
   } catch (e) {

@@ -1,4 +1,5 @@
 import Decimal from "decimal.js";
+import { contactBank } from "./contact-bank";
 import type { Supplier, Product, Snapshot } from "../model";
 import { calculate } from "../money";
 export const mockSuppliers: Supplier[] = [
@@ -72,6 +73,7 @@ export function mapContacts(rows: Raw[]): Supplier[] {
       branchCode: text(c.contactBranchCode),
       group: Number(c.contactGroup),
       zip: text(c.contactZipCode),
+        bank: contactBank(c),
     }));
 }
 export function mapProducts(rows: Raw[]): Product[] {

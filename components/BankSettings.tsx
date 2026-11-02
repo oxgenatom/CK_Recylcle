@@ -1,66 +1,39 @@
 "use client";
 import { useEffect, useState } from "react";
-import type { Draft, Supplier } from "@/lib/model";
-const empty = { name: "", accountName: "", accountNumber: "", branch: "" };
-async function request(path: string, bank?: Draft["bank"]) {
-  const response = await fetch("/api/" + path, {
-    method: bank ? "PUT" : "GET",
-    headers: bank ? { "Content-Type": "application/json" } : undefined,
-    body: bank ? JSON.stringify(bank) : undefined,
-    cache: "no-store",
-  });
-  const data = await response.json();
-  if (!response.ok) throw Error(data.error || "โหลดข้อมูลไม่สำเร็จ");
-  return data;
-}
+import type { Supplier } from "@/lib/model";
 export default function BankSettings() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [id, setId] = useState("");
-  const [bank, setBank] = useState(empty);
-  const [loading, setLoading] = useState(false);
-  const [loaded, setLoaded] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  useEffect(() => {
-    let active = true;
-    request("masters").then((data) => {
-      if (!active) return;
+  async function load(refresh = false) {
+    setBusy(true); setMessage("");
+    try {
+      const response = await fetch("/api/masters", {
+        method: refresh ? "POST" : "GET", cache: "no-store",
+        ...(refresh ? { headers: { "Content-Type": "application/json" }, body: "{}" } : {}),
+      });
+      const data = await response.json();
+      if (!response.ok) throw Error(data.error || "โหลดข้อมูลไม่สำเร็จ");
       setSuppliers(data.suppliers || []);
-      if (data.loading) setMessage("กรุณาอัปเดตผู้จำหน่ายที่หน้ารับสินค้าให้ครบ แล้วเปิดหน้านี้อีกครั้ง");
-    }).catch((error) => { if (active) setMessage(error.message); });
-    return () => { active = false; };
-  }, []);
-  useEffect(() => {
-    let active = true;
-    setBank(empty); setLoaded(false); setMessage("");
-    if (!id) return;
-    setLoading(true);
-    request("bank-settings/" + encodeURIComponent(id)).then((data) => {
-      if (active) { setBank(data || empty); setLoaded(true); }
-    }).catch((error) => { if (active) setMessage(error.message); })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
-  }, [id]);
+      setMessage(data.loading ? "กำลังโหลดข้อมูล กรุณากดดึงข้อมูลต่อจนเสร็จ" : data.warning || "โหลดข้อมูลแล้ว");
+    } catch (error) { setMessage((error as Error).message); }
+    finally { setBusy(false); }
+  }
+  useEffect(() => { void load(); }, []);
+  const supplier = suppliers.find((s) => s.id === id);
   return <section className="card">
-    <h2>ข้อมูลธนาคารผู้จำหน่าย</h2>
-    <p>ใช้พิมพ์ท้ายใบรับสินค้าเมื่อบันทึกใบใหม่หรือแก้ไขใบเดิม</p>
-    <form onSubmit={async (event) => {
-      event.preventDefault(); setLoading(true); setMessage("");
-      try {
-        await request("bank-settings/" + encodeURIComponent(id), bank);
-        setMessage("บันทึกข้อมูลธนาคารแล้ว");
-      } catch (error) { setMessage((error as Error).message); }
-      finally { setLoading(false); }
-    }}>
-      <label>ผู้จำหน่าย<select value={id} disabled={loading} onChange={(event) => setId(event.target.value)}>
-        <option value="">เลือกผู้จำหน่าย</option>
-        {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
-      </select></label>
-      <fieldset disabled={!loaded || loading}>
-        {([ ["name", "ธนาคาร", 100], ["accountName", "ชื่อบัญชี", 200], ["accountNumber", "เลขที่บัญชี", 50], ["branch", "สาขาธนาคาร", 100] ] as const).map(([key, label, maxLength]) =>
-          <label key={key}>{label}<input type="text" maxLength={maxLength} value={bank[key]} onChange={(event) => setBank({ ...bank, [key]: event.target.value })} /></label>)}
-        <button type="submit">บันทึกข้อมูลธนาคาร</button>
-      </fieldset>
-      <p role="status">{loading ? "กำลังโหลด / บันทึก…" : message}</p>
-    </form>
+    <h2>ข้อมูลธนาคารผู้จำหน่ายจาก FlowAccount</h2>
+    <p>แก้ไขบัญชีในหน้าผู้ติดต่อของ FlowAccount แล้วกดดึงข้อมูล ใบรับสินค้าที่บันทึกหลังจากนั้นจะใช้ข้อมูลนี้พิมพ์ท้ายเอกสาร</p>
+    <button type="button" disabled={busy} onClick={() => load(true)}>ดึงข้อมูลจาก FlowAccount / โหลดต่อ</button>
+    <label>ผู้จำหน่าย<select value={id} disabled={busy} onChange={(event) => setId(event.target.value)}>
+      <option value="">เลือกผู้จำหน่าย</option>
+      {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+    </select></label>
+    {supplier && (supplier.bank ? <>
+      {([ ["name", "ธนาคาร"], ["accountName", "ชื่อบัญชี"], ["accountNumber", "เลขที่บัญชี"], ["branch", "สาขาธนาคาร"] ] as const).map(([key, label]) =>
+        <label key={key}>{label}<input readOnly value={supplier.bank?.[key] || ""} /></label>)}
+    </> : <p>ไม่มีข้อมูลบัญชีจาก FlowAccount ในข้อมูลที่โหลดไว้ กรุณาตรวจข้อมูลผู้ติดต่อและกดดึงข้อมูลอีกครั้ง</p>)}
+    <p role="status">{busy ? "กำลังดึงข้อมูล…" : message}</p>
   </section>;
 }

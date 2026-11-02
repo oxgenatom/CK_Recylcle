@@ -38,6 +38,7 @@ export const draftSchema = z.object({
 });
 export type Draft = z.infer<typeof draftSchema>;
 export type Supplier = {
+  bank?: Draft["bank"];
   id: string;
   name: string;
   address: string;

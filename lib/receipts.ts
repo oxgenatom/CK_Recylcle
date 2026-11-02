@@ -1,5 +1,4 @@
 import "server-only";
-import { readBank } from "./bank-settings";
 import { randomUUID, createHash } from "node:crypto";
 import { z } from "zod";
 import { db } from "./db";
@@ -145,7 +144,7 @@ async function snapshot(a: Actor, raw: unknown): Promise<Snapshot> {
   if (!supplier) throw new HttpError(400, "ไม่พบผู้จำหน่าย กรุณาอัปเดตข้อมูล");
   return {
     ...d,
-    bank: (await readBank(a, d.supplierId)) ?? d.bank,
+    bank: supplier.bank,
     catalogEnvironment: catalogEnvironment(),
     supplier,
     items: d.items.map((i) => {

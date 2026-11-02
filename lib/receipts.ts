@@ -338,7 +338,7 @@ export async function submit(a: Actor, id: string, version: number, confirmation
     )
       throw new HttpError(422, "ผู้จำหน่ายถูกลบ กรุณาตรวจสอบ");
     const currentSupplier = (fresh.suppliers as Supplier[]).find(s => s.id === d.body.supplierId);
-    if (!currentSupplier || (Object.keys(currentSupplier) as (keyof Supplier)[]).some(key => currentSupplier[key] !== d.body.supplier[key]))
+    if (!currentSupplier || (Object.keys(currentSupplier) as (keyof Supplier)[]).some(key => key === "bank" ? JSON.stringify(currentSupplier.bank) !== JSON.stringify(d.body.supplier.bank) : currentSupplier[key] !== d.body.supplier[key]))
       { await invalidateCatalogApproval(a,d); throw new HttpError(422, "ข้อมูลผู้จำหน่ายเปลี่ยน กรุณาบันทึกและตรวจทานใหม่"); }
     if (!/^[1-9]\d*$/.test(d.body.supplierId) || !Number.isSafeInteger(Number(d.body.supplierId)))
       throw new HttpError(422, "รหัสผู้จำหน่ายไม่ตรง schema FlowAccount");

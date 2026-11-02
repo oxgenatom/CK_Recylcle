@@ -1,4 +1,5 @@
 "use client";
+import ReceiptPrint from "./ReceiptPrint";
 import { useEffect, useState } from "react";
 import { useKeyboardViewport } from "./useKeyboardViewport";
 import { signIn, signOut } from "next-auth/react";
@@ -845,6 +846,7 @@ export default function Workspace() {
           </>
         )}
       </main>
+      {selected && <><button type="button" onClick={() => window.print()}>พิมพ์ใบรับสินค้า</button><ReceiptPrint receipt={selected} /></>}
     </>
   );
 }

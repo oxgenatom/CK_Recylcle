@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { signOut } from "next-auth/react";
+import BankSettings from "@/components/BankSettings";
 type User = {
   identity: string;
   username: string;
@@ -63,6 +64,7 @@ export default function Account() {
           </p>
           {me.self.must_change && <p>ต้องเปลี่ยนรหัสผ่านก่อนเริ่มใช้งาน</p>}
           <h2>เปลี่ยนรหัสผ่าน</h2>
+          {!me.self.must_change && ["admin", "editor"].includes(me.role) && <BankSettings />}
           <form
             onSubmit={(e) => {
               e.preventDefault();

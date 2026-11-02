@@ -227,3 +227,25 @@ select:focus-visible {
     padding-bottom: 200px;
   }
 }
+
+/* The saved receipt alone is printed; screen controls and unsaved edits are excluded. */
+.receipt80 { display: none; }
+@media print {
+  @page { size: 80mm auto; margin: 4mm; }
+  html, body { background: white !important; color: black !important; margin: 0 !important; padding: 0 !important; }
+  body * { visibility: hidden; }
+  .receipt80, .receipt80 * { visibility: visible; }
+  .receipt80 { display: block; position: absolute; inset: 0 auto auto 0; width: 72mm; max-width: 72mm; font: 12px/1.5 Arial, sans-serif; overflow-wrap: anywhere; }
+  .receipt80 h1 { font-size: 18px; text-align: center; margin: 0; }
+  .receipt80 h2 { font-size: 15px; text-align: center; margin: 2mm 0; }
+  .receipt80 p { margin: 2mm 0; white-space: pre-wrap; }
+  .receipt80 hr { border: 0; border-top: 1px dashed black; }
+  .receipt80 .print-item { break-inside: avoid; margin: 2mm 0; }
+  .receipt80 .print-item span { float: right; }
+  .receipt80 .print-bank { break-inside: avoid; }
+  .receipt80 dl > div { display: flex; justify-content: space-between; gap: 2mm; }
+  .receipt80 dd { margin: 0; }
+  .receipt80 dl > div:last-child { font-weight: bold; font-size: 15px; }
+  header, nav, footer, .bottom { display: none !important; }
+  main { margin: 0 !important; padding: 0 !important; }
+}

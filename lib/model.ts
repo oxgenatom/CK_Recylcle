@@ -15,6 +15,12 @@ export const draftSchema = z.object({
     ),
   reference: z.string().max(100),
   notes: z.string().max(1000),
+  bank: z.object({
+    name: z.string().trim().max(100),
+    accountName: z.string().trim().max(200),
+    accountNumber: z.string().trim().max(50),
+    branch: z.string().trim().max(100),
+  }).optional(),
   warehouse: z.string().max(100),
   po: z.string().max(100),
   vatMode: z.enum(["exclusive", "inclusive", "none"]),

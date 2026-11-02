@@ -846,7 +846,7 @@ export default function Workspace() {
           </>
         )}
       </main>
-      {selected && <><button type="button" onClick={() => window.print()}>พิมพ์ใบรับสินค้า</button><ReceiptPrint receipt={selected} /></>}
+      {selected && <><button type="button" onClick={() => window.print()}>พิมพ์ใบรับสินค้า</button><ReceiptPrint receipt={selected} supplier={suppliers.find((s) => s.id === selected.body.supplierId)} /></>}
     </>
   );
 }

@@ -1,7 +1,9 @@
-import type { Receipt } from "@/lib/model";
+import type { Receipt, Supplier } from "@/lib/model";
+import { printBank } from "@/lib/print-bank";
 import { formatMoney, formatQuantity } from "@/lib/format-money";
 
-export default function ReceiptPrint({ receipt: r }: { receipt: Receipt }) {
+export default function ReceiptPrint({ receipt: r, supplier }: { receipt: Receipt; supplier?: Supplier }) {
+  const { bank, current } = printBank(r, supplier);
   return (
     <section className="receipt80" aria-label="ใบรับสินค้าสำหรับพิมพ์ 80 มม.">
       <h1>CK Recycle</h1>
@@ -62,13 +64,14 @@ export default function ReceiptPrint({ receipt: r }: { receipt: Receipt }) {
             : "ไม่คิด VAT"}
       </p>
       {r.body.notes && <p>หมายเหตุ: {r.body.notes}</p>}
-      {r.body.bank && Object.values(r.body.bank).some((value) => value.trim()) && (
+      {bank && (
         <div className="print-bank">
+          {current && <p>ข้อมูลบัญชีปัจจุบันจาก FlowAccount</p>}
           {([
-            ["ธนาคาร", r.body.bank.name],
-            ["ชื่อบัญชี", r.body.bank.accountName],
-            ["เลขที่บัญชี", r.body.bank.accountNumber],
-            ["สาขา", r.body.bank.branch],
+            ["ธนาคาร", bank.name],
+            ["ชื่อบัญชี", bank.accountName],
+            ["เลขที่บัญชี", bank.accountNumber],
+            ["สาขา", bank.branch],
           ] as const).map(([label, value]) => value && <p key={label}>{label}: {value}</p>)}
         </div>
       )}

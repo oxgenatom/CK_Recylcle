@@ -2,6 +2,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { PGLiteSocketServer } from "@electric-sql/pglite-socket";
 import { spawn } from "node:child_process";
 import assert from "node:assert/strict";
+import { readdir } from "node:fs/promises";
 const db = await PGlite.create();
 const server = new PGLiteSocketServer({
   db,
@@ -40,7 +41,7 @@ try {
   await run("scripts/migrate.ts");
   assert.equal(
     (await db.query("SELECT name FROM schema_migrations")).rows.length,
-    7,
+    (await readdir("migrations")).filter((name) => name.endsWith(".sql")).length,
   );
   await run("scripts/member.ts", ["issuer|subject", "admin"]);
   assert.equal(
@@ -49,7 +50,7 @@ try {
     "admin",
   );
   console.log(
-    "Migration runner passed: 7 migrations, repeat run unchanged, membership provisioning works",
+    "Migration runner passed: all migrations applied, repeat run unchanged, membership provisioning works",
   );
 } finally {
   await server.stop();
